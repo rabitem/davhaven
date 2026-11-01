@@ -1,0 +1,30 @@
+[package]
+name = "davhaven-provider-fake"
+description = "Davhaven scriptable calendar provider for sync engine tests."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-ports.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+chrono.workspace = true
+schemars.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+davhaven-port-tests.workspace = true
+davhaven-ports = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

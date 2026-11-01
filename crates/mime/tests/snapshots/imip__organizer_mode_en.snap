@@ -1,0 +1,91 @@
+---
+source: crates/mime/tests/imip.rs
+expression: assembled(&mail)
+---
+Date: Fri, 15 Jan 2027 08:00:00 +0000
+From: "Anna Example" <anna@example.org>
+Sender: noreply@mail.example.org
+Reply-To: "Anna Example" <anna@example.org>
+To: "Guest Example" <guest@example.net>
+Subject: Invitation: Planning session
+Message-ID: <00000000-0000-7000-8000-000000000004@mail.example.org>
+Content-Class: urn:content-classes:calendarmessage
+Auto-Submitted: auto-generated
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+ boundary="=_davhaven_mixed_836858aeee19ffb880c83a4559f9f631"
+
+--=_davhaven_mixed_836858aeee19ffb880c83a4559f9f631
+Content-Type: multipart/alternative;
+ boundary="=_davhaven_alt_48f730976300cad47004106a83e32c3d"
+
+--=_davhaven_alt_48f730976300cad47004106a83e32c3d
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+Plain text.
+
+--=_davhaven_alt_48f730976300cad47004106a83e32c3d
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+<p>Plain text.</p>
+
+--=_davhaven_alt_48f730976300cad47004106a83e32c3d
+Content-Type: text/calendar; charset=UTF-8; method=REQUEST
+Content-Transfer-Encoding: 7bit
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Davhaven//Scheduling//EN
+CALSCALE:GREGORIAN
+METHOD:REQUEST
+BEGIN:VTIMEZONE
+TZID:Europe/Berlin
+BEGIN:STANDARD
+DTSTART:19701025T030000
+RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:19700329T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0200
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:6f1c0c9e-2f1b-4b0e-9a55-0a6c0a5b7a11
+DTSTAMP:20270115T080000Z
+DTSTART;TZID=Europe/Berlin:20270112T100000
+DTEND;TZID=Europe/Berlin:20270112T113000
+SUMMARY:Planning session
+SEQUENCE:1
+ORGANIZER;CN=Anna Example:mailto:anna@example.org
+ATTENDEE;CN=Guest Example;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:
+ mailto:guest@example.net
+END:VEVENT
+END:VCALENDAR
+
+--=_davhaven_alt_48f730976300cad47004106a83e32c3d--
+--=_davhaven_mixed_836858aeee19ffb880c83a4559f9f631
+Content-Disposition: attachment; filename="invite.ics"
+Content-Type: application/ics; name="invite.ics"
+Content-Transfer-Encoding: base64
+
+QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KUFJPRElEOi0vL0RhdmhhdmVuLy9TY2hlZHVs
+aW5nLy9FTg0KQ0FMU0NBTEU6R1JFR09SSUFODQpNRVRIT0Q6UkVRVUVTVA0KQkVHSU46VlRJTUVa
+T05FDQpUWklEOkV1cm9wZS9CZXJsaW4NCkJFR0lOOlNUQU5EQVJEDQpEVFNUQVJUOjE5NzAxMDI1
+VDAzMDAwMA0KUlJVTEU6RlJFUT1ZRUFSTFk7QllNT05USD0xMDtCWURBWT0tMVNVDQpUWk9GRlNF
+VEZST006KzAyMDANClRaT0ZGU0VUVE86KzAxMDANCkVORDpTVEFOREFSRA0KQkVHSU46REFZTElH
+SFQNCkRUU1RBUlQ6MTk3MDAzMjlUMDIwMDAwDQpSUlVMRTpGUkVRPVlFQVJMWTtCWU1PTlRIPTM7
+QllEQVk9LTFTVQ0KVFpPRkZTRVRGUk9NOiswMTAwDQpUWk9GRlNFVFRPOiswMjAwDQpFTkQ6REFZ
+TElHSFQNCkVORDpWVElNRVpPTkUNCkJFR0lOOlZFVkVOVA0KVUlEOjZmMWMwYzllLTJmMWItNGIw
+ZS05YTU1LTBhNmMwYTViN2ExMQ0KRFRTVEFNUDoyMDI3MDExNVQwODAwMDBaDQpEVFNUQVJUO1Ra
+SUQ9RXVyb3BlL0JlcmxpbjoyMDI3MDExMlQxMDAwMDANCkRURU5EO1RaSUQ9RXVyb3BlL0Jlcmxp
+bjoyMDI3MDExMlQxMTMwMDANClNVTU1BUlk6UGxhbm5pbmcgc2Vzc2lvbg0KU0VRVUVOQ0U6MQ0K
+T1JHQU5JWkVSO0NOPUFubmEgRXhhbXBsZTptYWlsdG86YW5uYUBleGFtcGxlLm9yZw0KQVRURU5E
+RUU7Q049R3Vlc3QgRXhhbXBsZTtQQVJUU1RBVD1ORUVEUy1BQ1RJT047UlNWUD1UUlVFOg0KIG1h
+aWx0bzpndWVzdEBleGFtcGxlLm5ldA0KRU5EOlZFVkVOVA0KRU5EOlZDQUxFTkRBUg0K
+--=_davhaven_mixed_836858aeee19ffb880c83a4559f9f631--

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<B:mkcalendar xmlns:B="urn:ietf:params:xml:ns:caldav">
+  <A:set xmlns:A="DAV:">
+    <A:prop>
+      <B:supported-calendar-component-set>
+        <B:comp name="VEVENT"/>
+      </B:supported-calendar-component-set>
+      <A:displayname>Holidays</A:displayname>
+      <D:calendar-color xmlns:D="http://apple.com/ns/ical/" symbolic-color="blue">#1BADF8FF</D:calendar-color>
+      <D:calendar-order xmlns:D="http://apple.com/ns/ical/">4</D:calendar-order>
+      <D:calendar-enabled xmlns:D="http://apple.com/ns/ical/">1</D:calendar-enabled>
+      <B:schedule-calendar-transp>
+        <B:opaque/>
+      </B:schedule-calendar-transp>
+      <B:calendar-timezone>BEGIN:VCALENDAR&#13;
+VERSION:2.0&#13;
+PRODID:-//Apple Inc.//iOS 18.0//EN&#13;
+BEGIN:VTIMEZONE&#13;
+TZID:Europe/Berlin&#13;
+BEGIN:STANDARD&#13;
+DTSTART:19701025T030000&#13;
+RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU&#13;
+TZNAME:CET&#13;
+TZOFFSETFROM:+0200&#13;
+TZOFFSETTO:+0100&#13;
+END:STANDARD&#13;
+BEGIN:DAYLIGHT&#13;
+DTSTART:19700329T020000&#13;
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU&#13;
+TZNAME:CEST&#13;
+TZOFFSETFROM:+0100&#13;
+TZOFFSETTO:+0200&#13;
+END:DAYLIGHT&#13;
+END:VTIMEZONE&#13;
+END:VCALENDAR&#13;
+</B:calendar-timezone>
+    </A:prop>
+  </A:set>
+</B:mkcalendar>

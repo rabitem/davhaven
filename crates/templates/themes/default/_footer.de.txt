@@ -1,0 +1,3 @@
+--
+Gesendet von {{ tenant.name }}.
+{% if reply_to %}Antworten auf diese E-Mail gehen an {{ reply_to }}.{% else %}Bitte antworten Sie nicht auf diese E-Mail, sie wurde automatisch versendet.{% endif %}

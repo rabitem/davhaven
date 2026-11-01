@@ -1,0 +1,87 @@
+schema_version: 1
+name: python-caldav-read-only-edit
+description: >
+  The python `caldav` library works on a calendar that the user may only read: listing and fetching events works, and
+  `save()` on an event and `delete()` of an event are refused with 403, which the library raises as an authorization
+  error; the calendar object keeps working afterwards.
+client: python-caldav
+feature: read-only-edit
+origin: synthetic
+provenance: >
+  Written after the functional tests of python-caldav that use a calendar without write access; the read-only share
+  is rita's accepted grant of the fixture world, the requests are the ones of calendar.events() and event.save().
+actors:
+  rita: sharee_read
+variables:
+  shared: /dav/calendars/{{tenant}}/rita/projects
+steps:
+  - name: the events of the calendar are listed
+    as: rita
+    request:
+      method: REPORT
+      path: "{{shared}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/><C:calendar-data/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"/></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{shared}}/shared-event@acme.example.ics": 200
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "SUMMARY:Shared event" }
+
+  - name: a new event cannot be saved
+    as: rita
+    request:
+      method: PUT
+      path: "{{shared}}/py-readonly.ics"
+      headers: { Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//python-caldav//caldav//EN
+        BEGIN:VEVENT
+        UID:py-readonly-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270329T090000Z
+        DTEND:20270329T100000Z
+        SUMMARY:Not allowed
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 403
+
+  - name: an event cannot be deleted
+    as: rita
+    request:
+      method: DELETE
+      path: "{{shared}}/shared-event@acme.example.ics"
+    expect:
+      status: 403
+
+  - name: the description of the calendar cannot be set
+    as: rita
+    request:
+      method: PROPPATCH
+      path: "{{shared}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propertyupdate xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:set><D:prop><C:calendar-description>Changed by the reader</C:calendar-description></D:prop></D:set></D:propertyupdate>
+    expect:
+      status: 207
+      statuses:
+        "{{shared}}/": 403
+
+  - name: the calendar is still readable
+    as: rita
+    request:
+      method: GET
+      path: "{{shared}}/shared-event@acme.example.ics"
+    expect:
+      status: 200
+      body_contains: ["SUMMARY:Shared event"]

@@ -1,0 +1,1913 @@
+{
+  "envelope": {
+    "$defs": {
+      "AuditActor": {
+        "description": "The actor of an audit event (`audit_events.actor`).",
+        "properties": {
+          "ip_hash": {
+            "description": "A keyed hash of the client IP (never the address itself).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "$ref": "#/$defs/AuditActorKind",
+            "description": "What kind of actor it was."
+          },
+          "label": {
+            "description": "The token's label, for operators.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "principal_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The principal, for actors that act as one."
+          },
+          "token_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TokenId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The token, for token-based actors."
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "AuditActorKind": {
+        "description": "What kind of actor performed an audited action.",
+        "oneOf": [
+          {
+            "const": "principal",
+            "description": "A principal with an app password.",
+            "type": "string"
+          },
+          {
+            "const": "principal_token",
+            "description": "A principal API token.",
+            "type": "string"
+          },
+          {
+            "const": "tenant_token",
+            "description": "A tenant administrator token.",
+            "type": "string"
+          },
+          {
+            "const": "system_token",
+            "description": "A system token.",
+            "type": "string"
+          },
+          {
+            "const": "feed_reader",
+            "description": "A subscription feed reader.",
+            "type": "string"
+          },
+          {
+            "const": "rsvp_attendee",
+            "description": "An RSVP attendee.",
+            "type": "string"
+          },
+          {
+            "const": "anonymous",
+            "description": "An unauthenticated caller.",
+            "type": "string"
+          },
+          {
+            "const": "system",
+            "description": "The server itself (workers, retention, the sync engine).",
+            "type": "string"
+          }
+        ]
+      },
+      "EventId": {
+        "description": "Identifies a domain event (the `id` of the event envelope; also the webhook id).",
+        "format": "uuid",
+        "type": "string"
+      },
+      "EventType": {
+        "description": "The catalog of domain events (PLAN 2.11).",
+        "oneOf": [
+          {
+            "const": "principal.created",
+            "description": "A principal was created.",
+            "type": "string"
+          },
+          {
+            "const": "principal.updated",
+            "description": "A principal was changed.",
+            "type": "string"
+          },
+          {
+            "const": "principal.deleted",
+            "description": "A principal was deleted.",
+            "type": "string"
+          },
+          {
+            "const": "membership.changed",
+            "description": "The members of a group changed.",
+            "type": "string"
+          },
+          {
+            "const": "calendar.created",
+            "description": "A calendar was created.",
+            "type": "string"
+          },
+          {
+            "const": "calendar.updated",
+            "description": "A calendar was changed.",
+            "type": "string"
+          },
+          {
+            "const": "calendar.deleted",
+            "description": "A calendar was deleted.",
+            "type": "string"
+          },
+          {
+            "const": "calendar.objects_changed",
+            "description": "Objects of a calendar were created, changed or deleted.",
+            "type": "string"
+          },
+          {
+            "const": "grant.created",
+            "description": "A grant was created.",
+            "type": "string"
+          },
+          {
+            "const": "grant.updated",
+            "description": "A grant was changed.",
+            "type": "string"
+          },
+          {
+            "const": "grant.deleted",
+            "description": "A grant was removed.",
+            "type": "string"
+          },
+          {
+            "const": "share.invited",
+            "description": "A calendar was shared with someone.",
+            "type": "string"
+          },
+          {
+            "const": "share.accepted",
+            "description": "A share invitation was accepted.",
+            "type": "string"
+          },
+          {
+            "const": "share.declined",
+            "description": "A share invitation was declined.",
+            "type": "string"
+          },
+          {
+            "const": "scheduling.reply_received",
+            "description": "An attendee's reply was applied to an organizer's object.",
+            "type": "string"
+          },
+          {
+            "const": "scheduling.reply_rejected",
+            "description": "An inbound reply was rejected or quarantined.",
+            "type": "string"
+          },
+          {
+            "const": "rsvp.answered",
+            "description": "An attendee answered through an RSVP link.",
+            "type": "string"
+          },
+          {
+            "const": "mail.delivery_failed",
+            "description": "A scheduling mail could not be delivered.",
+            "type": "string"
+          },
+          {
+            "const": "external_account.sync_failed",
+            "description": "Syncing an external account failed.",
+            "type": "string"
+          },
+          {
+            "const": "webhook.disabled",
+            "description": "A webhook subscription was disabled after repeated failures.",
+            "type": "string"
+          },
+          {
+            "const": "webhook.ping",
+            "description": "A test event an operator sent to one subscription (`POST …/webhooks/{id}/ping`); it is delivered\nwhatever the subscription's event filter says.",
+            "type": "string"
+          }
+        ]
+      },
+      "PrincipalId": {
+        "description": "Identifies a principal (user, group, resource or service).",
+        "format": "uuid",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Identifies a tenant.",
+        "format": "uuid",
+        "type": "string"
+      },
+      "TokenId": {
+        "description": "Identifies an API token, a feed token or an RSVP token.",
+        "format": "uuid",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "The body of a webhook request: the domain event envelope with the payload as free JSON, because the payload\nshape depends on `type` (see `events.schema.json`).",
+    "properties": {
+      "actor": {
+        "$ref": "#/$defs/AuditActor",
+        "description": "Who caused the event."
+      },
+      "data": {
+        "description": "The payload: ids, natural keys and ETags; details only for subscriptions with `include_details`."
+      },
+      "id": {
+        "$ref": "#/$defs/EventId",
+        "description": "The event id (UUIDv7); also the `webhook-id` header. Consumers deduplicate on it."
+      },
+      "occurred_at": {
+        "description": "When the change was committed.",
+        "format": "date-time",
+        "type": "string"
+      },
+      "tenant": {
+        "$ref": "#/$defs/TenantId",
+        "description": "The tenant the event belongs to."
+      },
+      "type": {
+        "$ref": "#/$defs/EventType",
+        "description": "What happened."
+      },
+      "version": {
+        "description": "The envelope format version; additive changes keep it.",
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "id",
+      "type",
+      "version",
+      "tenant",
+      "occurred_at",
+      "actor",
+      "data"
+    ],
+    "title": "WebhookEnvelope",
+    "type": "object"
+  },
+  "envelope_version": 1,
+  "events": [
+    {
+      "payload": {
+        "$defs": {
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `principal.*` events.",
+        "properties": {
+          "principal": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The principal."
+          }
+        },
+        "required": [
+          "principal"
+        ],
+        "title": "PrincipalPayload",
+        "type": "object"
+      },
+      "type": "principal.created"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `principal.*` events.",
+        "properties": {
+          "principal": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The principal."
+          }
+        },
+        "required": [
+          "principal"
+        ],
+        "title": "PrincipalPayload",
+        "type": "object"
+      },
+      "type": "principal.updated"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `principal.*` events.",
+        "properties": {
+          "principal": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The principal."
+          }
+        },
+        "required": [
+          "principal"
+        ],
+        "title": "PrincipalPayload",
+        "type": "object"
+      },
+      "type": "principal.deleted"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `membership.changed`.",
+        "properties": {
+          "added": {
+            "description": "Members that were added.",
+            "items": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "type": "array"
+          },
+          "group": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The group."
+          },
+          "removed": {
+            "description": "Members that were removed.",
+            "items": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "group",
+          "added",
+          "removed"
+        ],
+        "title": "MembershipPayload",
+        "type": "object"
+      },
+      "type": "membership.changed"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "CalendarKind": {
+            "description": "The kind of a calendar (`calendars.kind`).",
+            "oneOf": [
+              {
+                "const": "personal",
+                "description": "The default calendar of a user (one per user).",
+                "type": "string"
+              },
+              {
+                "const": "group",
+                "description": "A calendar owned by a group; members get the tenant's default group access.",
+                "type": "string"
+              },
+              {
+                "const": "managed",
+                "description": "A calendar written through the API only; read-only for users.",
+                "type": "string"
+              },
+              {
+                "const": "user",
+                "description": "A calendar a user created.",
+                "type": "string"
+              },
+              {
+                "const": "mirror",
+                "description": "A read-only mirror of an external provider calendar.",
+                "type": "string"
+              }
+            ]
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `calendar.created|updated|deleted`.",
+        "properties": {
+          "calendar": {
+            "$ref": "#/$defs/CalendarId",
+            "description": "The calendar."
+          },
+          "kind": {
+            "$ref": "#/$defs/CalendarKind",
+            "description": "The kind of calendar."
+          },
+          "owner": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The owning principal."
+          }
+        },
+        "required": [
+          "calendar",
+          "owner",
+          "kind"
+        ],
+        "title": "CalendarPayload",
+        "type": "object"
+      },
+      "type": "calendar.created"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "CalendarKind": {
+            "description": "The kind of a calendar (`calendars.kind`).",
+            "oneOf": [
+              {
+                "const": "personal",
+                "description": "The default calendar of a user (one per user).",
+                "type": "string"
+              },
+              {
+                "const": "group",
+                "description": "A calendar owned by a group; members get the tenant's default group access.",
+                "type": "string"
+              },
+              {
+                "const": "managed",
+                "description": "A calendar written through the API only; read-only for users.",
+                "type": "string"
+              },
+              {
+                "const": "user",
+                "description": "A calendar a user created.",
+                "type": "string"
+              },
+              {
+                "const": "mirror",
+                "description": "A read-only mirror of an external provider calendar.",
+                "type": "string"
+              }
+            ]
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `calendar.created|updated|deleted`.",
+        "properties": {
+          "calendar": {
+            "$ref": "#/$defs/CalendarId",
+            "description": "The calendar."
+          },
+          "kind": {
+            "$ref": "#/$defs/CalendarKind",
+            "description": "The kind of calendar."
+          },
+          "owner": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The owning principal."
+          }
+        },
+        "required": [
+          "calendar",
+          "owner",
+          "kind"
+        ],
+        "title": "CalendarPayload",
+        "type": "object"
+      },
+      "type": "calendar.updated"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "CalendarKind": {
+            "description": "The kind of a calendar (`calendars.kind`).",
+            "oneOf": [
+              {
+                "const": "personal",
+                "description": "The default calendar of a user (one per user).",
+                "type": "string"
+              },
+              {
+                "const": "group",
+                "description": "A calendar owned by a group; members get the tenant's default group access.",
+                "type": "string"
+              },
+              {
+                "const": "managed",
+                "description": "A calendar written through the API only; read-only for users.",
+                "type": "string"
+              },
+              {
+                "const": "user",
+                "description": "A calendar a user created.",
+                "type": "string"
+              },
+              {
+                "const": "mirror",
+                "description": "A read-only mirror of an external provider calendar.",
+                "type": "string"
+              }
+            ]
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `calendar.created|updated|deleted`.",
+        "properties": {
+          "calendar": {
+            "$ref": "#/$defs/CalendarId",
+            "description": "The calendar."
+          },
+          "kind": {
+            "$ref": "#/$defs/CalendarKind",
+            "description": "The kind of calendar."
+          },
+          "owner": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The owning principal."
+          }
+        },
+        "required": [
+          "calendar",
+          "owner",
+          "kind"
+        ],
+        "title": "CalendarPayload",
+        "type": "object"
+      },
+      "type": "calendar.deleted"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "ETag": {
+            "description": "A strong entity tag: `\"` + the first 22 characters of base64url(SHA-256(stored bytes)) + `\"`.\n\nForeign tags (weak tags, other lengths) are rejected; callers treat a tag that fails to parse as a\nprecondition that cannot match.",
+            "type": "string"
+          },
+          "ExternalKey": {
+            "description": "The caller-chosen stable key of an object, used by the management API (`[A-Za-z0-9._:~-]{1,200}`).",
+            "type": "string"
+          },
+          "ObjectChange": {
+            "description": "One changed object in a `calendar.objects_changed` event.",
+            "properties": {
+              "etag": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ETag"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The new ETag; `None` for deletions."
+              },
+              "external_key": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ExternalKey"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The caller-chosen key, if the object has one."
+              },
+              "kind": {
+                "$ref": "#/$defs/ObjectChangeKind",
+                "description": "What happened."
+              },
+              "object": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ObjectId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The object, when it still exists."
+              },
+              "uid": {
+                "$ref": "#/$defs/Uid",
+                "description": "The iCalendar UID."
+              },
+              "uri": {
+                "$ref": "#/$defs/ObjectUri",
+                "description": "The resource name."
+              }
+            },
+            "required": [
+              "kind",
+              "uri",
+              "uid"
+            ],
+            "type": "object"
+          },
+          "ObjectChangeKind": {
+            "description": "What happened to an object.",
+            "oneOf": [
+              {
+                "const": "created",
+                "description": "The object was created.",
+                "type": "string"
+              },
+              {
+                "const": "updated",
+                "description": "The object was changed.",
+                "type": "string"
+              },
+              {
+                "const": "deleted",
+                "description": "The object was deleted.",
+                "type": "string"
+              }
+            ]
+          },
+          "ObjectId": {
+            "description": "Identifies a stored calendar object.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "ObjectUri": {
+            "description": "The decoded last path segment of a calendar object resource (for example `event-1.ics`).\n\nA single segment of at most 255 bytes without `/` or control characters; it is not a dot segment.\nPercent-encoding happens only in `ResourcePath::format`.",
+            "type": "string"
+          },
+          "SyncToken": {
+            "description": "A parsed sync token.",
+            "type": "string"
+          },
+          "Uid": {
+            "description": "An iCalendar `UID`: one to 255 bytes without control characters. Unique per calendar.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `calendar.objects_changed`.",
+        "properties": {
+          "calendar": {
+            "$ref": "#/$defs/CalendarId",
+            "description": "The calendar."
+          },
+          "changes": {
+            "description": "The changed objects, at most [`MAX_LISTED_CHANGES`].",
+            "items": {
+              "$ref": "#/$defs/ObjectChange"
+            },
+            "type": "array"
+          },
+          "sync_token": {
+            "$ref": "#/$defs/SyncToken",
+            "description": "The sync token after the change; the changes feed resumes from the previous one."
+          },
+          "truncated": {
+            "description": "Whether more objects changed than are listed.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "calendar",
+          "sync_token",
+          "changes",
+          "truncated"
+        ],
+        "title": "ObjectsChangedPayload",
+        "type": "object"
+      },
+      "type": "calendar.objects_changed"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantAccess": {
+            "description": "The access a grant confers (`calendar_grants.access`).",
+            "oneOf": [
+              {
+                "const": "read",
+                "description": "Read events.",
+                "type": "string"
+              },
+              {
+                "const": "read_write",
+                "description": "Read and write events.",
+                "type": "string"
+              },
+              {
+                "const": "admin",
+                "description": "Read, write, share and rename.",
+                "type": "string"
+              }
+            ]
+          },
+          "GrantId": {
+            "description": "Identifies a calendar grant.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantStatus": {
+            "description": "The state of a grant.",
+            "oneOf": [
+              {
+                "const": "pending",
+                "description": "Offered, not yet answered; confers nothing.",
+                "type": "string"
+              },
+              {
+                "const": "accepted",
+                "description": "Accepted by the grantee; confers its access.",
+                "type": "string"
+              },
+              {
+                "const": "declined",
+                "description": "Declined by the grantee; confers nothing.",
+                "type": "string"
+              }
+            ]
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `grant.*` and `share.*` events.",
+        "properties": {
+          "access": {
+            "$ref": "#/$defs/GrantAccess",
+            "description": "The access level."
+          },
+          "calendar": {
+            "$ref": "#/$defs/CalendarId",
+            "description": "The calendar."
+          },
+          "grant": {
+            "$ref": "#/$defs/GrantId",
+            "description": "The grant."
+          },
+          "grantee": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The user, group or service principal that is granted access."
+          },
+          "required": {
+            "default": false,
+            "description": "Whether the calendar is required for the people the grant reaches after the event. A change of the flag alone is a\n`grant.updated` too, and this field is how a consumer sees it.",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/$defs/GrantStatus",
+            "description": "The state of the grant after the event."
+          }
+        },
+        "required": [
+          "calendar",
+          "grant",
+          "grantee",
+          "access",
+          "status"
+        ],
+        "title": "GrantPayload",
+        "type": "object"
+      },
+      "type": "grant.created"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantAccess": {
+            "description": "The access a grant confers (`calendar_grants.access`).",
+            "oneOf": [
+              {
+                "const": "read",
+                "description": "Read events.",
+                "type": "string"
+              },
+              {
+                "const": "read_write",
+                "description": "Read and write events.",
+                "type": "string"
+              },
+              {
+                "const": "admin",
+                "description": "Read, write, share and rename.",
+                "type": "string"
+              }
+            ]
+          },
+          "GrantId": {
+            "description": "Identifies a calendar grant.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantStatus": {
+            "description": "The state of a grant.",
+            "oneOf": [
+              {
+                "const": "pending",
+                "description": "Offered, not yet answered; confers nothing.",
+                "type": "string"
+              },
+              {
+                "const": "accepted",
+                "description": "Accepted by the grantee; confers its access.",
+                "type": "string"
+              },
+              {
+                "const": "declined",
+                "description": "Declined by the grantee; confers nothing.",
+                "type": "string"
+              }
+            ]
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `grant.*` and `share.*` events.",
+        "properties": {
+          "access": {
+            "$ref": "#/$defs/GrantAccess",
+            "description": "The access level."
+          },
+          "calendar": {
+            "$ref": "#/$defs/CalendarId",
+            "description": "The calendar."
+          },
+          "grant": {
+            "$ref": "#/$defs/GrantId",
+            "description": "The grant."
+          },
+          "grantee": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The user, group or service principal that is granted access."
+          },
+          "required": {
+            "default": false,
+            "description": "Whether the calendar is required for the people the grant reaches after the event. A change of the flag alone is a\n`grant.updated` too, and this field is how a consumer sees it.",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/$defs/GrantStatus",
+            "description": "The state of the grant after the event."
+          }
+        },
+        "required": [
+          "calendar",
+          "grant",
+          "grantee",
+          "access",
+          "status"
+        ],
+        "title": "GrantPayload",
+        "type": "object"
+      },
+      "type": "grant.updated"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantAccess": {
+            "description": "The access a grant confers (`calendar_grants.access`).",
+            "oneOf": [
+              {
+                "const": "read",
+                "description": "Read events.",
+                "type": "string"
+              },
+              {
+                "const": "read_write",
+                "description": "Read and write events.",
+                "type": "string"
+              },
+              {
+                "const": "admin",
+                "description": "Read, write, share and rename.",
+                "type": "string"
+              }
+            ]
+          },
+          "GrantId": {
+            "description": "Identifies a calendar grant.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantStatus": {
+            "description": "The state of a grant.",
+            "oneOf": [
+              {
+                "const": "pending",
+                "description": "Offered, not yet answered; confers nothing.",
+                "type": "string"
+              },
+              {
+                "const": "accepted",
+                "description": "Accepted by the grantee; confers its access.",
+                "type": "string"
+              },
+              {
+                "const": "declined",
+                "description": "Declined by the grantee; confers nothing.",
+                "type": "string"
+              }
+            ]
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `grant.*` and `share.*` events.",
+        "properties": {
+          "access": {
+            "$ref": "#/$defs/GrantAccess",
+            "description": "The access level."
+          },
+          "calendar": {
+            "$ref": "#/$defs/CalendarId",
+            "description": "The calendar."
+          },
+          "grant": {
+            "$ref": "#/$defs/GrantId",
+            "description": "The grant."
+          },
+          "grantee": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The user, group or service principal that is granted access."
+          },
+          "required": {
+            "default": false,
+            "description": "Whether the calendar is required for the people the grant reaches after the event. A change of the flag alone is a\n`grant.updated` too, and this field is how a consumer sees it.",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/$defs/GrantStatus",
+            "description": "The state of the grant after the event."
+          }
+        },
+        "required": [
+          "calendar",
+          "grant",
+          "grantee",
+          "access",
+          "status"
+        ],
+        "title": "GrantPayload",
+        "type": "object"
+      },
+      "type": "grant.deleted"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantAccess": {
+            "description": "The access a grant confers (`calendar_grants.access`).",
+            "oneOf": [
+              {
+                "const": "read",
+                "description": "Read events.",
+                "type": "string"
+              },
+              {
+                "const": "read_write",
+                "description": "Read and write events.",
+                "type": "string"
+              },
+              {
+                "const": "admin",
+                "description": "Read, write, share and rename.",
+                "type": "string"
+              }
+            ]
+          },
+          "GrantId": {
+            "description": "Identifies a calendar grant.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantStatus": {
+            "description": "The state of a grant.",
+            "oneOf": [
+              {
+                "const": "pending",
+                "description": "Offered, not yet answered; confers nothing.",
+                "type": "string"
+              },
+              {
+                "const": "accepted",
+                "description": "Accepted by the grantee; confers its access.",
+                "type": "string"
+              },
+              {
+                "const": "declined",
+                "description": "Declined by the grantee; confers nothing.",
+                "type": "string"
+              }
+            ]
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `grant.*` and `share.*` events.",
+        "properties": {
+          "access": {
+            "$ref": "#/$defs/GrantAccess",
+            "description": "The access level."
+          },
+          "calendar": {
+            "$ref": "#/$defs/CalendarId",
+            "description": "The calendar."
+          },
+          "grant": {
+            "$ref": "#/$defs/GrantId",
+            "description": "The grant."
+          },
+          "grantee": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The user, group or service principal that is granted access."
+          },
+          "required": {
+            "default": false,
+            "description": "Whether the calendar is required for the people the grant reaches after the event. A change of the flag alone is a\n`grant.updated` too, and this field is how a consumer sees it.",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/$defs/GrantStatus",
+            "description": "The state of the grant after the event."
+          }
+        },
+        "required": [
+          "calendar",
+          "grant",
+          "grantee",
+          "access",
+          "status"
+        ],
+        "title": "GrantPayload",
+        "type": "object"
+      },
+      "type": "share.invited"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantAccess": {
+            "description": "The access a grant confers (`calendar_grants.access`).",
+            "oneOf": [
+              {
+                "const": "read",
+                "description": "Read events.",
+                "type": "string"
+              },
+              {
+                "const": "read_write",
+                "description": "Read and write events.",
+                "type": "string"
+              },
+              {
+                "const": "admin",
+                "description": "Read, write, share and rename.",
+                "type": "string"
+              }
+            ]
+          },
+          "GrantId": {
+            "description": "Identifies a calendar grant.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantStatus": {
+            "description": "The state of a grant.",
+            "oneOf": [
+              {
+                "const": "pending",
+                "description": "Offered, not yet answered; confers nothing.",
+                "type": "string"
+              },
+              {
+                "const": "accepted",
+                "description": "Accepted by the grantee; confers its access.",
+                "type": "string"
+              },
+              {
+                "const": "declined",
+                "description": "Declined by the grantee; confers nothing.",
+                "type": "string"
+              }
+            ]
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `grant.*` and `share.*` events.",
+        "properties": {
+          "access": {
+            "$ref": "#/$defs/GrantAccess",
+            "description": "The access level."
+          },
+          "calendar": {
+            "$ref": "#/$defs/CalendarId",
+            "description": "The calendar."
+          },
+          "grant": {
+            "$ref": "#/$defs/GrantId",
+            "description": "The grant."
+          },
+          "grantee": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The user, group or service principal that is granted access."
+          },
+          "required": {
+            "default": false,
+            "description": "Whether the calendar is required for the people the grant reaches after the event. A change of the flag alone is a\n`grant.updated` too, and this field is how a consumer sees it.",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/$defs/GrantStatus",
+            "description": "The state of the grant after the event."
+          }
+        },
+        "required": [
+          "calendar",
+          "grant",
+          "grantee",
+          "access",
+          "status"
+        ],
+        "title": "GrantPayload",
+        "type": "object"
+      },
+      "type": "share.accepted"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantAccess": {
+            "description": "The access a grant confers (`calendar_grants.access`).",
+            "oneOf": [
+              {
+                "const": "read",
+                "description": "Read events.",
+                "type": "string"
+              },
+              {
+                "const": "read_write",
+                "description": "Read and write events.",
+                "type": "string"
+              },
+              {
+                "const": "admin",
+                "description": "Read, write, share and rename.",
+                "type": "string"
+              }
+            ]
+          },
+          "GrantId": {
+            "description": "Identifies a calendar grant.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "GrantStatus": {
+            "description": "The state of a grant.",
+            "oneOf": [
+              {
+                "const": "pending",
+                "description": "Offered, not yet answered; confers nothing.",
+                "type": "string"
+              },
+              {
+                "const": "accepted",
+                "description": "Accepted by the grantee; confers its access.",
+                "type": "string"
+              },
+              {
+                "const": "declined",
+                "description": "Declined by the grantee; confers nothing.",
+                "type": "string"
+              }
+            ]
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `grant.*` and `share.*` events.",
+        "properties": {
+          "access": {
+            "$ref": "#/$defs/GrantAccess",
+            "description": "The access level."
+          },
+          "calendar": {
+            "$ref": "#/$defs/CalendarId",
+            "description": "The calendar."
+          },
+          "grant": {
+            "$ref": "#/$defs/GrantId",
+            "description": "The grant."
+          },
+          "grantee": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The user, group or service principal that is granted access."
+          },
+          "required": {
+            "default": false,
+            "description": "Whether the calendar is required for the people the grant reaches after the event. A change of the flag alone is a\n`grant.updated` too, and this field is how a consumer sees it.",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/$defs/GrantStatus",
+            "description": "The state of the grant after the event."
+          }
+        },
+        "required": [
+          "calendar",
+          "grant",
+          "grantee",
+          "access",
+          "status"
+        ],
+        "title": "GrantPayload",
+        "type": "object"
+      },
+      "type": "share.declined"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "ObjectId": {
+            "description": "Identifies a stored calendar object.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "PartStat": {
+            "description": "Participation status of an attendee (`PARTSTAT`).",
+            "oneOf": [
+              {
+                "const": "needs_action",
+                "description": "`NEEDS-ACTION`: no answer yet.",
+                "type": "string"
+              },
+              {
+                "const": "accepted",
+                "description": "`ACCEPTED`.",
+                "type": "string"
+              },
+              {
+                "const": "declined",
+                "description": "`DECLINED`.",
+                "type": "string"
+              },
+              {
+                "const": "tentative",
+                "description": "`TENTATIVE`.",
+                "type": "string"
+              },
+              {
+                "const": "delegated",
+                "description": "`DELEGATED`.",
+                "type": "string"
+              },
+              {
+                "const": "completed",
+                "description": "`COMPLETED` (to-dos).",
+                "type": "string"
+              },
+              {
+                "const": "in_process",
+                "description": "`IN-PROCESS` (to-dos).",
+                "type": "string"
+              }
+            ]
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "Uid": {
+            "description": "An iCalendar `UID`: one to 255 bytes without control characters. Unique per calendar.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `scheduling.reply_received` and `scheduling.reply_rejected`.",
+        "properties": {
+          "attendee": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The internal attendee, when the replying address resolves to a principal."
+          },
+          "calendar": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CalendarId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The organizer's calendar; `None` when a rejected reply matched no object."
+          },
+          "object": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The organizer's object; `None` when a rejected reply matched no object."
+          },
+          "partstat": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PartStat"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The answer; `None` when the message could not be read."
+          },
+          "reason": {
+            "description": "Why the reply was rejected (machine-readable), for rejections.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uid": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Uid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The UID of the event the reply is about."
+          }
+        },
+        "title": "SchedulingReplyPayload",
+        "type": "object"
+      },
+      "type": "scheduling.reply_received"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "ObjectId": {
+            "description": "Identifies a stored calendar object.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "PartStat": {
+            "description": "Participation status of an attendee (`PARTSTAT`).",
+            "oneOf": [
+              {
+                "const": "needs_action",
+                "description": "`NEEDS-ACTION`: no answer yet.",
+                "type": "string"
+              },
+              {
+                "const": "accepted",
+                "description": "`ACCEPTED`.",
+                "type": "string"
+              },
+              {
+                "const": "declined",
+                "description": "`DECLINED`.",
+                "type": "string"
+              },
+              {
+                "const": "tentative",
+                "description": "`TENTATIVE`.",
+                "type": "string"
+              },
+              {
+                "const": "delegated",
+                "description": "`DELEGATED`.",
+                "type": "string"
+              },
+              {
+                "const": "completed",
+                "description": "`COMPLETED` (to-dos).",
+                "type": "string"
+              },
+              {
+                "const": "in_process",
+                "description": "`IN-PROCESS` (to-dos).",
+                "type": "string"
+              }
+            ]
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "Uid": {
+            "description": "An iCalendar `UID`: one to 255 bytes without control characters. Unique per calendar.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `scheduling.reply_received` and `scheduling.reply_rejected`.",
+        "properties": {
+          "attendee": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The internal attendee, when the replying address resolves to a principal."
+          },
+          "calendar": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CalendarId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The organizer's calendar; `None` when a rejected reply matched no object."
+          },
+          "object": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The organizer's object; `None` when a rejected reply matched no object."
+          },
+          "partstat": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PartStat"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The answer; `None` when the message could not be read."
+          },
+          "reason": {
+            "description": "Why the reply was rejected (machine-readable), for rejections.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uid": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Uid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The UID of the event the reply is about."
+          }
+        },
+        "title": "SchedulingReplyPayload",
+        "type": "object"
+      },
+      "type": "scheduling.reply_rejected"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "CalendarId": {
+            "description": "Identifies a calendar.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "ObjectId": {
+            "description": "Identifies a stored calendar object.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "PartStat": {
+            "description": "Participation status of an attendee (`PARTSTAT`).",
+            "oneOf": [
+              {
+                "const": "needs_action",
+                "description": "`NEEDS-ACTION`: no answer yet.",
+                "type": "string"
+              },
+              {
+                "const": "accepted",
+                "description": "`ACCEPTED`.",
+                "type": "string"
+              },
+              {
+                "const": "declined",
+                "description": "`DECLINED`.",
+                "type": "string"
+              },
+              {
+                "const": "tentative",
+                "description": "`TENTATIVE`.",
+                "type": "string"
+              },
+              {
+                "const": "delegated",
+                "description": "`DELEGATED`.",
+                "type": "string"
+              },
+              {
+                "const": "completed",
+                "description": "`COMPLETED` (to-dos).",
+                "type": "string"
+              },
+              {
+                "const": "in_process",
+                "description": "`IN-PROCESS` (to-dos).",
+                "type": "string"
+              }
+            ]
+          },
+          "Uid": {
+            "description": "An iCalendar `UID`: one to 255 bytes without control characters. Unique per calendar.",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `rsvp.answered`.",
+        "properties": {
+          "calendar": {
+            "$ref": "#/$defs/CalendarId",
+            "description": "The organizer's calendar."
+          },
+          "object": {
+            "$ref": "#/$defs/ObjectId",
+            "description": "The organizer's object."
+          },
+          "partstat": {
+            "$ref": "#/$defs/PartStat",
+            "description": "The answer."
+          },
+          "uid": {
+            "$ref": "#/$defs/Uid",
+            "description": "The UID of the event."
+          }
+        },
+        "required": [
+          "calendar",
+          "object",
+          "uid",
+          "partstat"
+        ],
+        "title": "RsvpPayload",
+        "type": "object"
+      },
+      "type": "rsvp.answered"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "ItipMethod": {
+            "description": "The `METHOD` of an iTIP message (RFC 5546).",
+            "oneOf": [
+              {
+                "const": "publish",
+                "description": "`PUBLISH`.",
+                "type": "string"
+              },
+              {
+                "const": "request",
+                "description": "`REQUEST`: an invitation or update from the organizer.",
+                "type": "string"
+              },
+              {
+                "const": "reply",
+                "description": "`REPLY`: an attendee's answer.",
+                "type": "string"
+              },
+              {
+                "const": "add",
+                "description": "`ADD`.",
+                "type": "string"
+              },
+              {
+                "const": "cancel",
+                "description": "`CANCEL`: the organizer cancels the event or instances.",
+                "type": "string"
+              },
+              {
+                "const": "refresh",
+                "description": "`REFRESH`.",
+                "type": "string"
+              },
+              {
+                "const": "counter",
+                "description": "`COUNTER`.",
+                "type": "string"
+              },
+              {
+                "const": "decline_counter",
+                "description": "`DECLINECOUNTER`.",
+                "type": "string"
+              }
+            ]
+          },
+          "ObjectId": {
+            "description": "Identifies a stored calendar object.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "OutboxId": {
+            "description": "Identifies an outbox message.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `mail.delivery_failed`.",
+        "properties": {
+          "method": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ItipMethod"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The iTIP method of the mail, if it carried one."
+          },
+          "object": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The object the mail was about, if any."
+          },
+          "outbox": {
+            "$ref": "#/$defs/OutboxId",
+            "description": "The outbox message that failed permanently."
+          },
+          "reason": {
+            "description": "A machine-readable reason, for example `rejected` or `timeout`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outbox",
+          "reason"
+        ],
+        "title": "MailFailurePayload",
+        "type": "object"
+      },
+      "type": "mail.delivery_failed"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "ExternalAccountId": {
+            "description": "Identifies an external (provider) account.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "PrincipalId": {
+            "description": "Identifies a principal (user, group, resource or service).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `external_account.sync_failed`.",
+        "properties": {
+          "external_account": {
+            "$ref": "#/$defs/ExternalAccountId",
+            "description": "The external account."
+          },
+          "principal": {
+            "$ref": "#/$defs/PrincipalId",
+            "description": "The principal who owns it."
+          },
+          "provider": {
+            "description": "The provider name.",
+            "type": "string"
+          },
+          "reason": {
+            "description": "A machine-readable reason, for example `auth_revoked`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "external_account",
+          "principal",
+          "provider",
+          "reason"
+        ],
+        "title": "ExternalAccountPayload",
+        "type": "object"
+      },
+      "type": "external_account.sync_failed"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "WebhookId": {
+            "description": "Identifies a webhook subscription.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `webhook.disabled` and `webhook.ping`.",
+        "properties": {
+          "reason": {
+            "description": "A machine-readable reason: `endpoint_gone` or `max_consecutive_failures` for `webhook.disabled`, `ping`\nfor `webhook.ping`.",
+            "type": "string"
+          },
+          "webhook": {
+            "$ref": "#/$defs/WebhookId",
+            "description": "The webhook subscription."
+          }
+        },
+        "required": [
+          "webhook",
+          "reason"
+        ],
+        "title": "WebhookPayload",
+        "type": "object"
+      },
+      "type": "webhook.disabled"
+    },
+    {
+      "payload": {
+        "$defs": {
+          "WebhookId": {
+            "description": "Identifies a webhook subscription.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Payload of `webhook.disabled` and `webhook.ping`.",
+        "properties": {
+          "reason": {
+            "description": "A machine-readable reason: `endpoint_gone` or `max_consecutive_failures` for `webhook.disabled`, `ping`\nfor `webhook.ping`.",
+            "type": "string"
+          },
+          "webhook": {
+            "$ref": "#/$defs/WebhookId",
+            "description": "The webhook subscription."
+          }
+        },
+        "required": [
+          "webhook",
+          "reason"
+        ],
+        "title": "WebhookPayload",
+        "type": "object"
+      },
+      "type": "webhook.ping"
+    }
+  ],
+  "title": "Davhaven domain events"
+}

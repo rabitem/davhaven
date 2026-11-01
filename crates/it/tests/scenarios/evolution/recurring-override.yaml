@@ -1,0 +1,90 @@
+schema_version: 1
+name: evolution-recurring-override
+description: >
+  Evolution stores a daily series in the registry time zone with an exception (RECURRENCE-ID in the same zone), and a
+  query for the day of the exception finds the one resource.
+client: evolution
+feature: recurring-override
+origin: synthetic
+provenance: >
+  Written for this scenario in the form Evolution produces (registry TZID with its VTIMEZONE, X-EVOLUTION-ALARM-UID),
+  after testdata/corpus/evolution-event-registry-tzid.ics.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the series with its exception is stored
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/evo-series.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar" }
+      ical: |
+        BEGIN:VCALENDAR
+        PRODID:-//Ximian//NONSGML Evolution Calendar//EN
+        VERSION:2.0
+        BEGIN:VTIMEZONE
+        TZID:/freeassociation.sourceforge.net/Tzfile/Europe/Berlin
+        X-LIC-LOCATION:Europe/Berlin
+        BEGIN:STANDARD
+        TZNAME:CET
+        DTSTART:19701025T030000
+        TZOFFSETFROM:+0200
+        TZOFFSETTO:+0100
+        RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10
+        END:STANDARD
+        BEGIN:DAYLIGHT
+        TZNAME:CEST
+        DTSTART:19700329T020000
+        TZOFFSETFROM:+0100
+        TZOFFSETTO:+0200
+        RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3
+        END:DAYLIGHT
+        END:VTIMEZONE
+        BEGIN:VEVENT
+        UID:evo-series-1@workstation
+        DTSTAMP:20270120T081500Z
+        DTSTART;TZID=/freeassociation.sourceforge.net/Tzfile/Europe/Berlin:20270301T090000
+        DTEND;TZID=/freeassociation.sourceforge.net/Tzfile/Europe/Berlin:20270301T093000
+        RRULE:FREQ=DAILY;COUNT=5
+        SUMMARY:Daily
+        END:VEVENT
+        BEGIN:VEVENT
+        UID:evo-series-1@workstation
+        DTSTAMP:20270121T081500Z
+        RECURRENCE-ID;TZID=/freeassociation.sourceforge.net/Tzfile/Europe/Berlin:20270303T090000
+        DTSTART;TZID=/freeassociation.sourceforge.net/Tzfile/Europe/Berlin:20270303T140000
+        DTEND;TZID=/freeassociation.sourceforge.net/Tzfile/Europe/Berlin:20270303T143000
+        SUMMARY:Daily (afternoon)
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the afternoon instance is found at its new time
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270303T130000Z" end="20270303T140000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/evo-series.ics": 200
+
+  - name: the series is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/evo-series.ics"
+    expect:
+      status: 204

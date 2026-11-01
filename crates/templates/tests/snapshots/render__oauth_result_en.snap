@@ -1,0 +1,30 @@
+---
+source: crates/templates/tests/render.rs
+expression: show(&output)
+---
+subject: Calendar connected
+
+--- html ---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Calendar connected</title>
+<link rel="stylesheet" href="/assets/default/page.css">
+</head>
+<body>
+<main>
+<div class="card">
+
+<h1>Calendar connected</h1>
+<p class="notice" role="status">Your Example Provider calendar is connected. Its events appear in your calendar app after the next synchronization.</p>
+<p>You can close this window.</p>
+
+</div>
+</main>
+</body>
+</html>
+--- text ---

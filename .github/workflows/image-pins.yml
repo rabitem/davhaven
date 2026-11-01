@@ -1,0 +1,73 @@
+# Container image pins (PLAN 4.5, ENGINEERING_RULES R11): the images of the jobs (`container:` and `services:` of ci.yml,
+# nightly.yml, openapi-clients.yml, ghcr-retention.yml, this file, the BuildKit image of release.yml) and of the Dockerfile are
+# pinned by digest. Dependabot reads the Dockerfile but not the images of a workflow, so this weekly run compares every pin with
+# the digest that its registry gives to the tag now and fails when one is stale. The failed run names the pins and carries the
+# patch that refreshes them in its summary (`scripts/image-pins.sh update` made it): a person reviews it and lands it as a pull
+# request. The job opens no pull request itself, on purpose: that would need `contents: write` and `pull-requests: write`, and
+# this one reads the repository and nothing more. The rules and the reason for each are in the script, which also checks them
+# against sample data.
+#
+# The job needs the network and nothing else: it holds a token that reads this repository and nothing more, and takes a few
+# seconds. It runs where `vars.CI_RUNS_ON` says, like every other job of the repository, and on a GitHub-hosted runner when the
+# variable is unset (ENGINEERING_RULES R18): an organisation without a budget for hosted runners has such a job refused, and a
+# check that never starts never finds a stale pin. It runs in a container, like the jobs that build, because a runner chosen by
+# the variable is not expected to have more than the repository documents (CONTRIBUTING.md); the job needs `curl`, which the image
+# has, and `jq`, which the container installs. The image is the one of openapi-clients.yml (one digest per image), with the limits
+# of the other jobs; the container is not a security boundary.
+name: Image pins
+
+on:
+  schedule:
+    - cron: "37 3 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: image-pins
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  pins:
+    name: pins
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    container:
+      image: node:24-bookworm@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413
+      options: --cpus 1 --memory 1g --memory-swap 1g --cpu-shares 256 --oom-score-adj 500 --pids-limit 512
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install jq
+        run: |
+          apt-get update --quiet
+          apt-get install --yes --quiet --no-install-recommends jq
+      - name: The rules still do what they say
+        run: bash scripts/image-pins.sh --self-test
+      - name: Every pin is the digest of its tag
+        id: check
+        run: bash scripts/image-pins.sh check
+      # Only when the check failed: the same refresh a person would make, shown as a patch. It changes the checkout of this job and
+      # nothing else.
+      - name: The patch that makes them current
+        if: ${{ failure() && steps.check.outcome == 'failure' }}
+        run: |
+          bash scripts/image-pins.sh update
+          {
+            echo
+            echo "The patch that makes the pins current (review it, then open a pull request):"
+            echo
+            echo '```diff'
+            git diff -- .github Dockerfile
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"

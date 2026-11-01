@@ -1,0 +1,33 @@
+# Normalise text files to LF.
+* text=auto eol=lf
+
+*.rs text eol=lf diff=rust
+*.toml text eol=lf
+*.md text eol=lf diff=markdown
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Byte-exact test data (R9, PLAN 3.5): client bodies, iTIP golden files and DAV XML fixtures are compared
+# byte for byte, so git must never convert their line endings (CRLF in iCalendar is significant).
+*.ics -text diff
+*.ifb -text diff
+*.eml -text diff
+*.vcf -text diff
+testdata/** -text diff
+crates/fixtures/data/** -text diff
+# Dumps of released databases (pg_dump writes the CR LF of iCalendar text as it is): byte-exact, never normalised.
+crates/store-postgres/tests/restore/** -text diff
+
+# Generated and committed contract documents.
+Cargo.lock linguist-generated=true
+docs/openapi.json linguist-generated=true
+docs/contracts/** linguist-generated=true
+docs/configuration.md linguist-generated=true
+docs/problems.md linguist-generated=true
+docs/permission-matrix.md linguist-generated=true
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

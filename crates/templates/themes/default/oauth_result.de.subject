@@ -1,0 +1,1 @@
+{% if success %}Kalender verbunden{% else %}Verbindung fehlgeschlagen{% endif %}

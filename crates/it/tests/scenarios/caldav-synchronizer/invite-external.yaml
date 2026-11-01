@@ -1,0 +1,84 @@
+schema_version: 1
+name: caldav-synchronizer-invite-external
+description: >
+  CalDav Synchronizer uploads a meeting with a guest outside the tenant: the write succeeds, the organizer's copy
+  records that the invitation was queued or mailed (iMIP), nothing is written for the guest on this server, and
+  deleting the meeting cancels it.
+client: caldav-synchronizer
+feature: invite-external
+origin: synthetic
+provenance: >
+  The organizer's object as CalDav Synchronizer writes a meeting with an attendee whose address belongs to no
+  principal (PRODID -//github.com/rianjs/ical.net//NONSGML ical.net 4.0//EN); no capture of a deployed instance yet.
+  The mail itself is covered by the scheduling matrix.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the meeting with a guest is uploaded
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/cds-external.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8", User-Agent: "CalDavSynchronizer/4.0.0 (Outlook 16.0)" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//github.com/rianjs/ical.net//NONSGML ical.net 4.0//EN
+        BEGIN:VEVENT
+        UID:cds-external-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270321T130000Z
+        DTEND:20270321T140000Z
+        SUMMARY:Kundentermin
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=A Guest;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:guest@example.net
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the organizer's copy records what happened to the invitation
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/cds-external.ics"
+    expect:
+      status: 200
+      ical_contains: ["SCHEDULE-STATUS=1.", ":mailto:guest@example.net"]
+      ical_excludes: ["SCHEDULE-STATUS=5."]
+
+  - name: a second upload with a changed time keeps the state of the guest
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/cds-external.ics"
+      headers: { Content-Type: "text/calendar; charset=utf-8", User-Agent: "CalDavSynchronizer/4.0.0 (Outlook 16.0)" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//github.com/rianjs/ical.net//NONSGML ical.net 4.0//EN
+        BEGIN:VEVENT
+        UID:cds-external-1@example.org
+        DTSTAMP:20270101T000000Z
+        SEQUENCE:1
+        DTSTART:20270321T140000Z
+        DTEND:20270321T150000Z
+        SUMMARY:Kundentermin
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=A Guest;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:guest@example.net
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the meeting is cancelled by deleting it
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/cds-external.ics"
+    expect:
+      status: 204

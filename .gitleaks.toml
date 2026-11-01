@@ -1,0 +1,21 @@
+# Secret scanning (.github/workflows/secret-scan.yml): the default gitleaks rules, minus the deterministic test values the
+# repository uses on purpose. Each entry names a value that is not a secret anywhere; add to it only with a reason.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Deterministic test credentials and recorded provider fixtures"
+regexes = [
+  # App passwords of the fixture world and the credential tests (PLAN 2.6 format, constant labels).
+  '''abcd-efgh-ijkl-mnop-qrst-uvwx''',
+  # Bearer tokens of the API tests: the documented `dvh_pat_{prefix}_{secret}` shape with an alphabet as the secret.
+  '''dvh_pat_abcdefghijkl_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-_abcde''',
+  # The key-file secret of the server tests and the values they check stay out of the output: hex digits counting up.
+  '''0123456789abcdef''',
+  # A truncated PEM in the X.509 parser tests (four bytes of DER, not a key).
+  '''-----BEGIN PRIVATE KEY-----\\r\\nBAUG''',
+]
+paths = [
+  # Recorded Google Calendar API responses; their sync tokens are opaque sample values.
+  '''crates/provider-google/tests/fixtures/.*\.json''',
+]

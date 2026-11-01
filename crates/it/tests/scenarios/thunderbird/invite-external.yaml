@@ -1,0 +1,63 @@
+schema_version: 1
+name: thunderbird-invite-external
+description: >
+  Thunderbird saves a meeting with an attendee outside the tenant. The server schedules by mail (iMIP) and records the
+  state in the organizer's copy; an attendee with SCHEDULE-AGENT=CLIENT (the client sends the invitation itself, which
+  Thunderbird can be configured to do) is left alone: no status is written for that line.
+client: thunderbird
+feature: invite-external
+origin: synthetic
+provenance: >
+  Organizer object in the form of Thunderbird (Mozilla PRODID, X-MOZ-GENERATION); the SCHEDULE-AGENT=CLIENT parameter
+  is the one RFC 6638 defines for clients that send their own invitations (PLAN 2.8: attendees with another
+  SCHEDULE-AGENT are not scheduled).
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: a meeting with a guest and with a guest that the client mails itself is saved
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/tb-external.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+        VERSION:2.0
+        BEGIN:VEVENT
+        CREATED:20270105T130000Z
+        LAST-MODIFIED:20270105T130500Z
+        DTSTAMP:20270105T130500Z
+        UID:tb-external-1@example.org
+        SUMMARY:Lieferantentermin
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=Server Guest;PARTSTAT=NEEDS-ACTION;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:server-guest@example.net
+        ATTENDEE;CN=Client Guest;PARTSTAT=NEEDS-ACTION;ROLE=REQ-PARTICIPANT;RSVP=TRUE;SCHEDULE-AGENT=CLIENT:mailto:client-guest@example.net
+        DTSTART:20270324T090000Z
+        DTEND:20270324T100000Z
+        X-MOZ-GENERATION:1
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the guest that the server mails has a delivery state and the client agent is kept
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/tb-external.ics"
+    expect:
+      status: 200
+      ical_contains:
+        - "SCHEDULE-STATUS=1."
+        - "SCHEDULE-AGENT=CLIENT"
+
+  - name: the meeting is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/tb-external.ics"
+    expect:
+      status: 204

@@ -1,0 +1,114 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('48d31887-5fad-4d73-a9f5-3c356e68a038')/calendars('AAMkADDEFAULT%3D')/calendarView(id,changeKey,subject,body,start,end,isAllDay,isCancelled,showAs,sensitivity,location,createdDateTime,lastModifiedDateTime)",
+  "value": [
+    {
+      "@odata.etag": "W/\"CQAAABYAAADFixtureChangeKeyCCCC\"",
+      "id": "AAMkADSERIESOCC1=",
+      "type": "occurrence",
+      "seriesMasterId": "AAMkADSERIESMASTER=",
+      "createdDateTime": "2026-09-03T08:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-10-20T09:30:00.0000000Z",
+      "changeKey": "CQAAABYAAADFixtureChangeKeyCCCC",
+      "subject": "Stand-up",
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2027-01-05T10:00:00.0000000",
+        "timeZone": "W. Europe Standard Time"
+      },
+      "end": {
+        "dateTime": "2027-01-05T10:15:00.0000000",
+        "timeZone": "W. Europe Standard Time"
+      },
+      "location": {
+        "displayName": ""
+      },
+      "isAllDay": false,
+      "isCancelled": false,
+      "showAs": "busy",
+      "sensitivity": "normal"
+    },
+    {
+      "@odata.etag": "W/\"CQAAABYAAADFixtureChangeKeyDDDD\"",
+      "id": "AAMkADSERIESEXC1=",
+      "type": "exception",
+      "seriesMasterId": "AAMkADSERIESMASTER=",
+      "createdDateTime": "2026-09-03T08:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-10-21T09:30:00.0000000Z",
+      "changeKey": "CQAAABYAAADFixtureChangeKeyDDDD",
+      "subject": "Stand-up (longer)",
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2027-01-12T11:00:00.0000000",
+        "timeZone": "W. Europe Standard Time"
+      },
+      "end": {
+        "dateTime": "2027-01-12T11:30:00.0000000",
+        "timeZone": "W. Europe Standard Time"
+      },
+      "location": {
+        "displayName": ""
+      },
+      "isAllDay": false,
+      "isCancelled": false,
+      "showAs": "busy",
+      "sensitivity": "normal"
+    },
+    {
+      "@odata.etag": "W/\"CQAAABYAAADFixtureChangeKeyEEEE\"",
+      "id": "AAMkADPRIVATE=",
+      "type": "singleInstance",
+      "createdDateTime": "2026-09-04T08:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-09-04T08:00:00.0000000Z",
+      "changeKey": "CQAAABYAAADFixtureChangeKeyEEEE",
+      "subject": "Doctor",
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2027-02-02T07:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2027-02-02T08:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "location": {
+        "displayName": ""
+      },
+      "isAllDay": false,
+      "isCancelled": false,
+      "showAs": "tentative",
+      "sensitivity": "private"
+    },
+    {
+      "@odata.etag": "W/\"CQAAABYAAADFixtureChangeKeyFFFF\"",
+      "id": "AAMkADCANCELLED=",
+      "type": "singleInstance",
+      "changeKey": "CQAAABYAAADFixtureChangeKeyFFFF",
+      "subject": "Canceled: Review",
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2027-02-03T09:00:00.0000000",
+        "timeZone": "W. Europe Standard Time"
+      },
+      "end": {
+        "dateTime": "2027-02-03T10:00:00.0000000",
+        "timeZone": "W. Europe Standard Time"
+      },
+      "isAllDay": false,
+      "isCancelled": true,
+      "showAs": "busy",
+      "sensitivity": "normal"
+    }
+  ]
+}

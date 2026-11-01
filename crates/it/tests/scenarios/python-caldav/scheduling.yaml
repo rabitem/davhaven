@@ -1,0 +1,182 @@
+schema_version: 1
+name: python-caldav-invite-and-respond
+description: >
+  The python `caldav` library invites a user, reads the Schedule-Tag that the save returns, finds the invitation in the
+  attendee's scheduling inbox, accepts it in the attendee's copy with the Schedule-Tag it read, and the organizer sees the
+  answer; an answer based on a stale Schedule-Tag is refused with 412, and merging the answer into the organizer's copy does not change the organizer's tag.
+client: python-caldav
+feature: accept
+origin: synthetic
+provenance: >
+  Ported from the functional tests of python-caldav (tests/test_caldav.py: testInviteAndRespond,
+  testScheduleTagReturnedOnSave, testScheduleTagStableOnPartstateUpdate, testScheduleTagChangesOnOrganizerUpdate,
+  testScheduleTagMismatchRaisesError, testScheduleTagMatchSucceeds); the requests are those of save_with_invites and
+  accept_invite.
+actors:
+  olivia: owner
+  otto: other_user
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+  mine: /dav/calendars/{{tenant}}/otto/personal
+steps:
+  - name: the organizer saves an event with an attendee (testScheduleTagReturnedOnSave)
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/py-invite.ics"
+      headers: { Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//python-caldav//caldav//EN
+        BEGIN:VEVENT
+        UID:py-invite-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270325T090000Z
+        DTEND:20270325T100000Z
+        SUMMARY:Invitation
+        ORGANIZER:mailto:olivia@{{login_domain}}
+        ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    capture:
+      organizer_tag: { header: Schedule-Tag }
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the attendee finds the copy
+    as: otto
+    request:
+      method: REPORT
+      path: "{{mine}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"/></C:comp-filter></C:filter>
+        </C:calendar-query>
+    capture:
+      copy: { xpath: "/{DAV:}multistatus/{DAV:}response/{DAV:}href" }
+    expect:
+      status: 207
+
+  - name: the attendee reads the Schedule-Tag of the copy
+    as: otto
+    request:
+      method: GET
+      path: "{{copy}}"
+    capture:
+      tag: { header: Schedule-Tag }
+    expect:
+      status: 200
+      headers:
+        schedule-tag: {}
+
+  - name: an answer based on the tag that was read succeeds (testScheduleTagMatchSucceeds)
+    as: otto
+    request:
+      method: PUT
+      path: "{{copy}}"
+      headers: { If-Schedule-Tag-Match: "{{tag}}", Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//python-caldav//caldav//EN
+        BEGIN:VEVENT
+        UID:py-invite-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270325T090000Z
+        DTEND:20270325T100000Z
+        SUMMARY:Invitation
+        ORGANIZER:mailto:olivia@{{login_domain}}
+        ATTENDEE;PARTSTAT=ACCEPTED;RSVP=TRUE:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the attendee's own change gives the copy a new Schedule-Tag
+    as: otto
+    request:
+      method: GET
+      path: "{{copy}}"
+    capture:
+      answered_tag: { header: Schedule-Tag }
+    expect:
+      status: 200
+      headers:
+        schedule-tag: { present: true }
+      ical_contains: ["PARTSTAT=ACCEPTED"]
+
+  - name: the organizer sees the answer and the merge leaves the organizer's Schedule-Tag as it was (testScheduleTagStableOnPartstateUpdate)
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/py-invite.ics"
+    expect:
+      status: 200
+      headers:
+        schedule-tag: "{{organizer_tag}}"
+      ical_contains: ["PARTSTAT=ACCEPTED"]
+
+  - name: the organizer changes the time, which gives the attendee's copy a new tag (testScheduleTagChangesOnOrganizerUpdate)
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/py-invite.ics"
+      headers: { Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//python-caldav//caldav//EN
+        BEGIN:VEVENT
+        UID:py-invite-1@example.org
+        DTSTAMP:20270102T000000Z
+        SEQUENCE:1
+        DTSTART:20270325T100000Z
+        DTEND:20270325T110000Z
+        SUMMARY:Invitation
+        ORGANIZER:mailto:olivia@{{login_domain}}
+        ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the attendee's copy has a different Schedule-Tag now
+    as: otto
+    request:
+      method: GET
+      path: "{{copy}}"
+    expect:
+      status: 200
+      headers:
+        schedule-tag: { not_equals: "{{answered_tag}}" }
+      ical_contains: ["DTSTART:20270325T100000Z", "PARTSTAT=NEEDS-ACTION"]
+
+  - name: an answer based on the old tag is refused (testScheduleTagMismatchRaisesError)
+    as: otto
+    request:
+      method: PUT
+      path: "{{copy}}"
+      headers: { If-Schedule-Tag-Match: "{{answered_tag}}", Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//python-caldav//caldav//EN
+        BEGIN:VEVENT
+        UID:py-invite-1@example.org
+        DTSTAMP:20270102T000000Z
+        SEQUENCE:1
+        DTSTART:20270325T100000Z
+        DTEND:20270325T110000Z
+        SUMMARY:Invitation
+        ORGANIZER:mailto:olivia@{{login_domain}}
+        ATTENDEE;PARTSTAT=DECLINED;RSVP=TRUE:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 412

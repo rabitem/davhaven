@@ -1,0 +1,67 @@
+---
+source: crates/templates/tests/render.rs
+expression: "show(&render(&engine, Template::ImipRequest, locale, update.clone()))"
+---
+subject: Updated invitation: Planning <session> & coffee
+
+--- html ---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Planning &lt;session&gt; &amp; coffee</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f3f5;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f1f3f5;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border:1px solid #d9dee3;border-radius:6px;font-family:Arial,Helvetica,sans-serif;color:#1f2933;font-size:16px;line-height:1.5;">
+<tr><td style="padding:24px 28px 8px 28px;">
+
+<p style="margin:0 0 16px 0;"><strong>Anna Example</strong> has updated an invitation for you.</p>
+<h1 style="font-size:20px;line-height:1.3;margin:0 0 12px 0;">Planning &lt;session&gt; &amp; coffee</h1>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px 0;">
+<tr><th scope="row" align="left" valign="top" style="padding:2px 16px 2px 0;font-weight:bold;">When</th><td style="padding:2px 0;">Tuesday, January 12, 2027, 10:00 AM – 11:30 AM (Europe/Berlin)</td></tr>
+<tr><th scope="row" align="left" valign="top" style="padding:2px 16px 2px 0;font-weight:bold;">Where</th><td style="padding:2px 0;">Room 4, Main Street 1</td></tr>
+<tr><th scope="row" align="left" valign="top" style="padding:2px 16px 2px 0;font-weight:bold;">Organizer</th><td style="padding:2px 0;">Anna Example</td></tr>
+</table>
+<p style="margin:0 0 16px 0;">Agenda:<br>
+1. Roadmap<br>
+2. Budget</p>
+<p style="margin:0 0 8px 0;">Please let Anna Example know whether you can attend:</p>
+<p style="margin:0 0 16px 0;"><a href="https://calendar.example.org/rsvp/dvh_rsvp_token" style="display:inline-block;padding:10px 18px;background-color:#0b5cad;color:#ffffff;text-decoration:none;border-radius:4px;font-weight:bold;">Respond to this invitation</a></p>
+<p style="margin:0 0 16px 0;font-size:13px;color:#52606d;">If the button does not work, open this link: <a href="https://calendar.example.org/rsvp/dvh_rsvp_token" style="color:#0b5cad;">https://calendar.example.org/rsvp/dvh_rsvp_token</a></p>
+<p style="margin:0 0 16px 0;font-size:13px;color:#52606d;">Your calendar application can also add this event from the attached invitation (invite.ics).</p>
+
+</td></tr>
+<tr><td style="padding:16px 28px 24px 28px;border-top:1px solid #e4e7eb;font-size:13px;line-height:1.5;color:#52606d;">
+<p style="margin:0;">Sent by Example Organisation.</p>
+<p style="margin:8px 0 0 0;">Replies to this message go to anna@example.org.</p>
+
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
+--- text ---
+Anna Example has updated an invitation for you.
+
+Planning <session> & coffee
+When: Tuesday, January 12, 2027, 10:00 AM – 11:30 AM (Europe/Berlin)
+Where: Room 4, Main Street 1
+Organizer: Anna Example
+
+Agenda:
+1. Roadmap
+2. Budget
+
+Please let Anna Example know whether you can attend:
+https://calendar.example.org/rsvp/dvh_rsvp_token
+
+Your calendar application can also add this event from the attached invitation (invite.ics).
+
+--
+Sent by Example Organisation.
+Replies to this message go to anna@example.org.

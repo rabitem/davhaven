@@ -1,0 +1,105 @@
+schema_version: 1
+name: caldav-synchronizer-crud
+description: >
+  CalDav Synchronizer (Outlook) uploads an appointment whose time zone is a Windows name (W. Europe Standard Time) with
+  its own VTIMEZONE, and one whose zone (Romance Standard Time) has no VTIMEZONE at all; both are stored and found by a
+  time-range query at the right instant, and read back byte for byte.
+client: caldav-synchronizer
+feature: crud
+origin: synthetic
+provenance: >
+  Bodies are testdata/corpus/caldav-synchronizer-windows-tzid.ics and caldav-synchronizer-windows-tzid-no-vtimezone.ics,
+  reconstructions of what CalDav Synchronizer (ical.net) writes for Outlook appointments (see testdata/corpus/README.md).
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the appointment with a Windows zone and its VTIMEZONE is uploaded
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/cs-windows.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/caldav-synchronizer-windows-tzid.ics
+    capture:
+      etag: { header: ETag }
+    expect:
+      status: 201
+
+  - name: the appointment with a Windows zone and no VTIMEZONE is uploaded
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/cs-windows-bare.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/caldav-synchronizer-windows-tzid-no-vtimezone.ics
+    expect:
+      status: 201
+
+  - name: the bytes are returned as uploaded
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/cs-windows.ics"
+    expect:
+      status: 200
+      headers:
+        etag: "{{etag}}"
+      ical_contains:
+        - "DTSTART;TZID=W. Europe Standard Time:20270329T100000"
+        - "X-MICROSOFT-CDO-BUSYSTATUS:BUSY"
+
+  - name: the appointment is found at 10:00 in Berlin on the day of the change to summer time
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270329T080000Z" end="20270329T090000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/cs-windows.ics": 200
+
+  - name: the series without a VTIMEZONE is found on its second day
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270903T100000Z" end="20270903T110000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/cs-windows-bare.ics": 200
+
+  - name: the appointment with its VTIMEZONE is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/cs-windows.ics"
+    expect:
+      status: 204
+
+  - name: the appointment without a VTIMEZONE is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/cs-windows-bare.ics"
+    expect:
+      status: 204

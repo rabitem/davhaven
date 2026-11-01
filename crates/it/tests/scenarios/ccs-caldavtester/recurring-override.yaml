@@ -1,0 +1,116 @@
+schema_version: 1
+name: ccs-caldavtester-recurring-override
+description: >
+  A weekly series with an overridden instance and an excluded date, queried as the CalendarServer test suite queries
+  recurrences: a time-range query matches the series for a window that holds an instance, the expansion returns single
+  instances (the override in place of the regular one, the excluded date missing), and a window with no instance
+  returns nothing.
+client: ccs-caldavtester
+feature: recurring-override
+origin: synthetic
+provenance: >
+  Written after scripts/tests/CalDAV/recurrenceput.xml, reports/expand and the time-range queries of
+  ccs-caldavtester (see NOTICE); the series is written for this scenario.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the series is put
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ccs-recurring.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//CalendarServer tests//EN
+        BEGIN:VEVENT
+        UID:ccs-recurring-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270406T090000Z
+        DTEND:20270406T100000Z
+        RRULE:FREQ=WEEKLY;COUNT=5
+        EXDATE:20270420T090000Z
+        SUMMARY:Weekly
+        END:VEVENT
+        BEGIN:VEVENT
+        UID:ccs-recurring-1@example.org
+        DTSTAMP:20270102T000000Z
+        RECURRENCE-ID:20270413T090000Z
+        DTSTART:20270413T140000Z
+        DTEND:20270413T150000Z
+        SUMMARY:Weekly (afternoon)
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: a window with an instance matches the series
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270427T000000Z" end="20270428T000000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/ccs-recurring.ics": 200
+
+  - name: a window after the last instance matches nothing
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270601T000000Z" end="20270602T000000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 0 }
+
+  - name: the expansion returns single instances with the override in place and the excluded date missing
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/><C:calendar-data><C:expand start="20270406T000000Z" end="20270430T000000Z"/></C:calendar-data></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270406T000000Z" end="20270430T000000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "DTSTART:20270406T090000Z" }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "DTSTART:20270413T140000Z" }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "DTSTART:20270427T090000Z" }
+      body_excludes: ["RRULE", "DTSTART:20270413T090000Z", "DTSTART:20270420T090000Z"]
+
+  - name: the stored object keeps the series, the exclusion and the override
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/ccs-recurring.ics"
+    expect:
+      status: 200
+      ical_contains: ["RRULE:FREQ=WEEKLY;COUNT=5", "EXDATE:20270420T090000Z", "RECURRENCE-ID:20270413T090000Z"]

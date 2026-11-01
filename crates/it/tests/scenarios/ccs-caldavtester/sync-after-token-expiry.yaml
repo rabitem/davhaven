@@ -1,0 +1,226 @@
+schema_version: 1
+name: ccs-caldavtester-sync-report
+description: >
+  The sync-collection tests of the CalendarServer test suite: an initial report returns every resource and a token, a
+  report with that token returns nothing when nothing changed and the changes (a new resource, a changed one, a deleted
+  one as 404) when something did, the CTag moves with the token, sync-level infinity and a token of another collection
+  are refused, and so is a token that the server does not know.
+client: ccs-caldavtester
+feature: sync-after-token-expiry
+origin: synthetic
+provenance: >
+  Written after scripts/tests/CalDAV/sync-report.xml and ctag.xml of ccs-caldavtester (see NOTICE); the refusals are
+  those of RFC 6578 and PLAN 2.7 (sync-level infinite is a 403 with the precondition element, the status RFC 4918
+  section 16 uses with one, because RFC 6578 gives the request none).
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/ccs-sync
+  other: /dav/calendars/{{tenant}}/olivia/ccs-sync-other
+steps:
+  - name: two calendars are made
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{cal}}/"
+    expect:
+      status: 201
+
+  - name: the second calendar
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{other}}/"
+    expect:
+      status: 201
+
+  - name: an object is put
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/a.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//CalendarServer tests//EN
+        BEGIN:VEVENT
+        UID:ccs-sync-a@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270411T090000Z
+        DTEND:20270411T100000Z
+        SUMMARY:A
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the initial report returns the object and a token
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token/>
+          <D:sync-level>1</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    capture:
+      token: { xpath: "/{DAV:}multistatus/{DAV:}sync-token" }
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/a.ics": 200
+
+  - name: nothing changed, so the report with the token is empty and returns the same token
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token>{{token}}</D:sync-token>
+          <D:sync-level>1</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 0 }
+        - { path: "/{DAV:}multistatus/{DAV:}sync-token", equals: "{{token}}" }
+
+  - name: one object is added and the first is deleted
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/b.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//CalendarServer tests//EN
+        BEGIN:VEVENT
+        UID:ccs-sync-b@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270412T090000Z
+        DTEND:20270412T100000Z
+        SUMMARY:B
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the first object is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/a.ics"
+    expect:
+      status: 204
+
+  - name: the report returns the new object and the deletion
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token>{{token}}</D:sync-token>
+          <D:sync-level>1</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    capture:
+      token2: { xpath: "/{DAV:}multistatus/{DAV:}sync-token" }
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/a.ics": 404
+        "{{cal}}/b.ics": 200
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}sync-token", not_equals: "{{token}}" }
+
+  - name: the CTag is the token of the collection
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/"><D:prop><CS:getctag/></D:prop></D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{http://calendarserver.org/ns/}getctag", equals: "{{token2}}" }
+
+  - name: a token of another collection is refused
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{other}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token>{{token2}}</D:sync-token>
+          <D:sync-level>1</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    expect:
+      status: 403
+      body_contains: ["valid-sync-token"]
+
+  - name: sync-level infinity is refused
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token/>
+          <D:sync-level>infinite</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    expect:
+      status: 403
+      body_contains: ["sync-traversal-supported"]
+
+  - name: a token the server does not know is refused
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token>data:,12345</D:sync-token>
+          <D:sync-level>1</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    expect:
+      status: 403
+      body_contains: ["valid-sync-token"]
+
+  - name: the calendars are deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/"
+    expect:
+      status: 204
+
+  - name: the second calendar is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{other}}/"
+    expect:
+      status: 204

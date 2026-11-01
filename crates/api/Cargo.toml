@@ -1,0 +1,37 @@
+[package]
+name = "davhaven-api"
+description = "Davhaven management REST API (`/api/v1`)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-app.workspace = true
+davhaven-domain.workspace = true
+davhaven-http.workspace = true
+davhaven-wire.workspace = true
+axum.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["rt", "time"] }
+tracing.workspace = true
+url.workspace = true
+utoipa.workspace = true
+utoipa-axum.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+davhaven-app-fake.workspace = true
+async-trait.workspace = true
+http-body-util.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "sync", "test-util", "time"] }
+tower.workspace = true
+
+[lints]
+workspace = true

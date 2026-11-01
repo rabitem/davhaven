@@ -1,0 +1,101 @@
+schema_version: 1
+name: caldav-synchronizer-invite-internal
+description: >
+  CalDav Synchronizer uploads a meeting with two attendees of the tenant: the server schedules it, the organizer's
+  copy records the delivery to both, and the next refresh of an attendee finds the meeting as a copy of its own.
+client: caldav-synchronizer
+feature: invite-internal
+origin: synthetic
+provenance: >
+  The organizer's object as CalDav Synchronizer writes a new meeting with attendees (PRODID
+  -//github.com/rianjs/ical.net//NONSGML ical.net 4.0//EN); the requests of the attendee are those of the client's
+  refresh. The invitation is delivered by the server, not by the client.
+actors:
+  olivia: owner
+  otto: other_user
+  mia: group_member
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the meeting is uploaded
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/cds-invite.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8", User-Agent: "CalDavSynchronizer/4.0.0 (Outlook 16.0)" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//github.com/rianjs/ical.net//NONSGML ical.net 4.0//EN
+        BEGIN:VEVENT
+        UID:cds-invite-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270327T090000Z
+        DTEND:20270327T100000Z
+        SUMMARY:Planung
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=Otto Other;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:otto@{{login_domain}}
+        ATTENDEE;CN=Mia Member;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:mia@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the organizer's copy records the delivery to both attendees
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/cds-invite.ics"
+    expect:
+      status: 200
+      ical_contains:
+        - "SCHEDULE-STATUS=1.2:mailto:otto@{{login_domain}}"
+        - "SCHEDULE-STATUS=1.2:mailto:mia@{{login_domain}}"
+
+  - name: the colleague's calendar lists the entity tags and the multiget fetches the copy
+    as: otto
+    request:
+      method: REPORT
+      path: /dav/calendars/{{tenant}}/otto/personal/
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8", User-Agent: "CalDavSynchronizer/4.0.0 (Outlook 16.0)" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270301T000000Z" end="20270401T000000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    capture:
+      copy: { xpath: "/{DAV:}multistatus/{DAV:}response/{DAV:}href" }
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 1 }
+
+  - name: the copy is the meeting with the attendee's own state
+    as: otto
+    request:
+      method: GET
+      path: "{{copy}}"
+    expect:
+      status: 200
+      headers:
+        schedule-tag: {}
+      ical_contains: ["UID:cds-invite-1@example.org", "PARTSTAT=NEEDS-ACTION"]
+
+  - name: the invitation is in the scheduling inbox of the second attendee
+    as: mia
+    request:
+      method: PROPFIND
+      path: /dav/calendars/{{tenant}}/mia/inbox/
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8", User-Agent: "CalDavSynchronizer/4.0.0 (Outlook 16.0)" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:getetag/></D:prop></D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 2 }

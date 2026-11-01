@@ -1,0 +1,105 @@
+schema_version: 1
+name: ccs-caldavtester-account-setup
+description: >
+  The discovery that the CalendarServer test suite runs before any other test: OPTIONS announces the calendar access and
+  scheduling classes, the principal names its home and its scheduling collections, the home lists the calendars and the
+  special collections with their resource types, and a calendar names the reports and components it supports.
+client: ccs-caldavtester
+feature: account-setup
+origin: synthetic
+provenance: >
+  Written after the discovery scripts of ccs-caldavtester (scripts/tests/CalDAV/options.xml, principal-properties and
+  the resource type checks of mkcalendar.xml); the assertions are the properties that the suite requires from every
+  CalDAV server, see NOTICE.
+actors:
+  olivia: owner
+variables:
+  principal: /dav/principals/{{tenant}}/olivia/
+  home: /dav/calendars/{{tenant}}/olivia/
+steps:
+  - name: OPTIONS announces the calendar access and scheduling classes
+    as: olivia
+    request:
+      method: OPTIONS
+      path: "{{home}}personal/"
+    expect:
+      status: [200, 204]
+      headers:
+        dav: { contains: calendar-access }
+
+  - name: scheduling is announced as well
+    as: olivia
+    request:
+      method: OPTIONS
+      path: "{{principal}}"
+    expect:
+      status: [200, 204]
+      headers:
+        dav: { contains: calendar-auto-schedule }
+
+  - name: the principal names its home, its scheduling collections and its address
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{principal}}"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop>
+            <D:resourcetype/>
+            <D:displayname/>
+            <C:calendar-home-set/>
+            <C:schedule-inbox-URL/>
+            <C:schedule-outbox-URL/>
+            <C:calendar-user-address-set/>
+          </D:prop>
+        </D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{DAV:}resourcetype/{DAV:}principal" }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-home-set/{DAV:}href", equals: "{{home}}" }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}schedule-inbox-URL/{DAV:}href", equals: "{{home}}inbox/" }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}schedule-outbox-URL/{DAV:}href", equals: "{{home}}outbox/" }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-user-address-set/{DAV:}href", contains: "mailto:olivia@{{login_domain}}" }
+
+  - name: the home lists calendars, inbox and outbox with their resource types
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/><D:displayname/></D:prop></D:propfind>
+    expect:
+      status: 207
+      statuses:
+        "{{home}}personal/": 200
+        "{{home}}inbox/": 200
+        "{{home}}outbox/": 200
+      xpath:
+        - { path: "//{DAV:}resourcetype/{urn:ietf:params:xml:ns:caldav}calendar" }
+        - { path: "//{DAV:}resourcetype/{urn:ietf:params:xml:ns:caldav}schedule-inbox", count: 1 }
+        - { path: "//{DAV:}resourcetype/{urn:ietf:params:xml:ns:caldav}schedule-outbox", count: 1 }
+
+  - name: a calendar names the components and the reports it supports
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}personal/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><C:supported-calendar-component-set/><D:supported-report-set/></D:prop>
+        </D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set/{urn:ietf:params:xml:ns:caldav}comp" }
+        - { path: "//{DAV:}supported-report/{DAV:}report/{urn:ietf:params:xml:ns:caldav}calendar-query" }
+        - { path: "//{DAV:}supported-report/{DAV:}report/{urn:ietf:params:xml:ns:caldav}calendar-multiget" }
+        - { path: "//{DAV:}supported-report/{DAV:}report/{urn:ietf:params:xml:ns:caldav}free-busy-query" }
+        - { path: "//{DAV:}supported-report/{DAV:}report/{DAV:}sync-collection" }

@@ -1,0 +1,4 @@
+<p style="margin:0;">Gesendet von {{ tenant.name }}.</p>
+{% if reply_to %}<p style="margin:8px 0 0 0;">Antworten auf diese E-Mail gehen an {{ reply_to }}.</p>
+{% else %}<p style="margin:8px 0 0 0;">Bitte antworten Sie nicht auf diese E-Mail, sie wurde automatisch versendet.</p>
+{% endif %}

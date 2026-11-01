@@ -1,0 +1,179 @@
+schema_version: 1
+name: ccs-caldavtester-crud
+description: >
+  The object life cycle of the CalendarServer test suite: MKCALENDAR (and a second one on the same URL), PUT of a new
+  object, the preconditions of a second PUT, rejected calendar data and a duplicate UID, GET, COPY, MOVE and DELETE
+  with the answers a CalDAV server owes (201, 204, 403 with the precondition element, 404, 405, 412).
+client: ccs-caldavtester
+feature: crud
+origin: synthetic
+provenance: >
+  Written after scripts/tests/CalDAV/mkcalendar.xml, put.xml, get.xml, delete.xml and copymove.xml of
+  ccs-caldavtester (see NOTICE); the object bodies are written for this scenario.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/ccs-crud
+steps:
+  - name: a calendar is made
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{cal}}/"
+    expect:
+      status: 201
+
+  - name: a second MKCALENDAR on the same URL is refused
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{cal}}/"
+    expect:
+      status: 405
+
+  - name: an object is put
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/one.ics"
+      headers: { If-None-Match: "*" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//CalendarServer tests//EN
+        BEGIN:VEVENT
+        UID:ccs-crud-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270405T090000Z
+        DTEND:20270405T100000Z
+        SUMMARY:One
+        END:VEVENT
+        END:VCALENDAR
+    capture:
+      etag: { header: ETag }
+    expect:
+      status: 201
+
+  - name: a second PUT that wants a new object is refused
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/one.ics"
+      headers: { If-None-Match: "*" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//CalendarServer tests//EN
+        BEGIN:VEVENT
+        UID:ccs-crud-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270405T090000Z
+        DTEND:20270405T100000Z
+        SUMMARY:Again
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 412
+
+  - name: data that is not a calendar object is rejected with the precondition
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/bad.ics"
+      headers: { Content-Type: "text/calendar; charset=utf-8" }
+      body: "this is not an iCalendar object\r\n"
+    expect:
+      status: 403
+      body_contains: ["valid-calendar-data"]
+
+  - name: the same UID in another resource is rejected with the precondition
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/duplicate.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//CalendarServer tests//EN
+        BEGIN:VEVENT
+        UID:ccs-crud-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270406T090000Z
+        DTEND:20270406T100000Z
+        SUMMARY:Duplicate
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 403
+      body_contains: ["no-uid-conflict"]
+
+  - name: the object is read
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/one.ics"
+    expect:
+      status: 200
+      headers:
+        etag: "{{etag}}"
+        content-type: { contains: text/calendar }
+      ical_contains: ["UID:ccs-crud-1@example.org", "SUMMARY:One"]
+
+  - name: the object is copied into another calendar (a copy within the calendar would repeat the UID)
+    as: olivia
+    request:
+      method: COPY
+      path: "{{cal}}/one.ics"
+      headers: { Destination: "{{base_url}}/dav/calendars/{{tenant}}/olivia/personal/copy.ics" }
+    expect:
+      status: [201, 204]
+
+  - name: the copy is moved within its calendar
+    as: olivia
+    request:
+      method: MOVE
+      path: /dav/calendars/{{tenant}}/olivia/personal/copy.ics
+      headers: { Destination: "{{base_url}}/dav/calendars/{{tenant}}/olivia/personal/moved.ics" }
+    expect:
+      status: [201, 204]
+
+  - name: the moved object is there
+    as: olivia
+    request:
+      method: GET
+      path: /dav/calendars/{{tenant}}/olivia/personal/moved.ics
+    expect:
+      status: 200
+      ical_contains: ["UID:ccs-crud-1@example.org"]
+
+  - name: the old name of the moved object is gone
+    as: olivia
+    request:
+      method: GET
+      path: /dav/calendars/{{tenant}}/olivia/personal/copy.ics
+    expect:
+      status: 404
+
+  - name: the object is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/one.ics"
+    expect:
+      status: 204
+
+  - name: a second delete finds nothing
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/one.ics"
+    expect:
+      status: 404
+
+  - name: the calendar is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/"
+    expect:
+      status: 204

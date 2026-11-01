@@ -1,0 +1,164 @@
+schema_version: 1
+name: davx5-sync-after-token-expiry
+description: >
+  DAVx5 syncs a calendar with sync-collection: the first request without a token returns everything and a token, a
+  later one returns only what changed (a new event, a deletion reported as 404). A token that the server no longer
+  accepts (garbage, from another calendar or from the future) is refused with 403 and DAV:valid-sync-token, and DAVx5
+  starts over without a token.
+client: davx5
+feature: sync-after-token-expiry
+origin: synthetic
+provenance: >
+  Request is testdata/dav/davx5-sync-collection.xml (initial sync, default namespace); the follow-up requests carry the
+  token DAVx5 stored. Refusals as RFC 6578 section 3.2 and PLAN 2.7 define them.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/davx5-sync
+steps:
+  - name: a calendar is created for the scenario
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{cal}}/"
+    expect:
+      status: 201
+
+  - name: an event exists before the first sync
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/one.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:+//IDN bitfire.at//DAVx5/4.4.2 ical4j/3.2.19
+        BEGIN:VEVENT
+        DTSTAMP:20270112T163000Z
+        UID:davx5-sync-1@example.org
+        SUMMARY:One
+        DTSTART:20270303T170000Z
+        DTEND:20270303T180000Z
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the initial sync returns the event and a token
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/davx5-sync-collection.xml
+    capture:
+      token: { xpath: "/{DAV:}multistatus/{DAV:}sync-token" }
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/one.ics": 200
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}sync-token", contains: ":" }
+
+  - name: a second event is added and the first one deleted by another device
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/two.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Other device//EN
+        BEGIN:VEVENT
+        DTSTAMP:20270112T163000Z
+        UID:davx5-sync-2@example.org
+        SUMMARY:Two
+        DTSTART:20270304T170000Z
+        DTEND:20270304T180000Z
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the first event is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/one.ics"
+    expect:
+      status: 204
+
+  - name: the next sync returns only the changes
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <sync-collection xmlns="DAV:">
+          <sync-token>{{token}}</sync-token>
+          <sync-level>1</sync-level>
+          <prop><getcontenttype/><getetag/></prop>
+        </sync-collection>
+    capture:
+      token2: { xpath: "/{DAV:}multistatus/{DAV:}sync-token" }
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/two.ics": 200
+        "{{cal}}/one.ics": 404
+
+  - name: a token the server does not know is refused
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <sync-collection xmlns="DAV:">
+          <sync-token>urn:davhaven:sync:00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000:7</sync-token>
+          <sync-level>1</sync-level>
+          <prop><getetag/></prop>
+        </sync-collection>
+    expect:
+      status: 403
+      body_contains: ["valid-sync-token"]
+
+  - name: a token that is not a token at all is refused the same way
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <sync-collection xmlns="DAV:">
+          <sync-token>http://example.org/not-a-token</sync-token>
+          <sync-level>1</sync-level>
+          <prop><getetag/></prop>
+        </sync-collection>
+    expect:
+      status: 403
+      body_contains: ["valid-sync-token"]
+
+  - name: starting over without a token returns the current state
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/davx5-sync-collection.xml
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/two.ics": 200
+
+  - name: the calendar is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/"
+    expect:
+      status: 204

@@ -1,0 +1,110 @@
+schema_version: 1
+name: caldav-synchronizer-recurring-override
+description: >
+  CalDav Synchronizer uploads a weekly Outlook series in a Windows time zone with an excluded date and a modified
+  occurrence: the server reads the zone name (CLDR table) and finds the occurrences at their real instants, also the
+  modified one, and not the excluded one.
+client: caldav-synchronizer
+feature: recurring-override
+origin: synthetic
+provenance: >
+  Written for this scenario in the form ical.net produces for Outlook series (Windows TZID with a VTIMEZONE, EXDATE,
+  an exception with RECURRENCE-ID); the zone is the one of testdata/corpus/caldav-synchronizer-windows-tzid.ics.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the series with an exclusion and an exception is uploaded
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/cs-series.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        PRODID:-//github.com/rianjs/ical.net//NONSGML ical.net 4.0//EN
+        VERSION:2.0
+        BEGIN:VTIMEZONE
+        TZID:W. Europe Standard Time
+        BEGIN:STANDARD
+        DTSTART:20001029T030000
+        RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10
+        TZNAME:Standard Time
+        TZOFFSETFROM:+0200
+        TZOFFSETTO:+0100
+        END:STANDARD
+        BEGIN:DAYLIGHT
+        DTSTART:20000326T020000
+        RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3
+        TZNAME:Daylight Time
+        TZOFFSETFROM:+0100
+        TZOFFSETTO:+0200
+        END:DAYLIGHT
+        END:VTIMEZONE
+        BEGIN:VEVENT
+        DTSTAMP:20270113T083000Z
+        UID:cs-series-1@example.org
+        SUMMARY:Wochenmeeting
+        DTSTART;TZID=W. Europe Standard Time:20270301T100000
+        DTEND;TZID=W. Europe Standard Time:20270301T110000
+        RRULE:FREQ=WEEKLY;COUNT=6
+        EXDATE;TZID=W. Europe Standard Time:20270315T100000
+        END:VEVENT
+        BEGIN:VEVENT
+        DTSTAMP:20270114T083000Z
+        UID:cs-series-1@example.org
+        SUMMARY:Wochenmeeting (verlegt)
+        RECURRENCE-ID;TZID=W. Europe Standard Time:20270308T100000
+        DTSTART;TZID=W. Europe Standard Time:20270308T150000
+        DTEND;TZID=W. Europe Standard Time:20270308T160000
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the modified occurrence is found at 15:00 Berlin time (14:00 UTC)
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270308T140000Z" end="20270308T150000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/cs-series.ics": 200
+
+  - name: the excluded week has no occurrence
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270315T000000Z" end="20270316T000000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 0 }
+
+  - name: the series is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/cs-series.ics"
+    expect:
+      status: 204

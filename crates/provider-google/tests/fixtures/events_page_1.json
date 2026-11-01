@@ -1,0 +1,70 @@
+{
+  "kind": "calendar#events",
+  "etag": "\"p32c4v0d1k4q9u0g\"",
+  "summary": "anna@example.org",
+  "updated": "2026-10-21T09:30:00.512Z",
+  "timeZone": "Europe/Berlin",
+  "accessRole": "owner",
+  "nextPageToken": "PAGE2",
+  "items": [
+    {
+      "kind": "calendar#event",
+      "etag": "\"3512341234123000\"",
+      "id": "7ke2cubqs1gk9q8ob3q06hvf2d",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=N2tlMmN1YnFzMWdrOXE4b2IzcTA2aHZmMmQgYW5uYUBleGFtcGxlLm9yZw",
+      "created": "2026-09-01T08:00:00.000Z",
+      "updated": "2026-10-20T09:30:00.123Z",
+      "summary": "Kick-off, Q4",
+      "description": "Agenda:\n1. Plan\n2. Budget",
+      "location": "Room 4",
+      "creator": {
+        "email": "anna@example.org",
+        "self": true
+      },
+      "organizer": {
+        "email": "anna@example.org",
+        "self": true
+      },
+      "start": {
+        "dateTime": "2027-01-05T10:00:00+01:00",
+        "timeZone": "Europe/Berlin"
+      },
+      "end": {
+        "dateTime": "2027-01-05T11:00:00+01:00",
+        "timeZone": "Europe/Berlin"
+      },
+      "iCalUID": "7ke2cubqs1gk9q8ob3q06hvf2d@google.com",
+      "sequence": 1,
+      "attendees": [
+        {
+          "email": "ben@example.net",
+          "responseStatus": "needsAction"
+        }
+      ],
+      "reminders": {
+        "useDefault": true
+      },
+      "eventType": "default"
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3512341234123001\"",
+      "id": "ho3cbdh72idrpkhssoau5fdm1g",
+      "status": "confirmed",
+      "created": "2026-09-02T08:00:00.000Z",
+      "updated": "2026-09-02T08:00:00.000Z",
+      "summary": "Company holiday",
+      "start": {
+        "date": "2027-01-18"
+      },
+      "end": {
+        "date": "2027-01-20"
+      },
+      "transparency": "transparent",
+      "iCalUID": "ho3cbdh72idrpkhssoau5fdm1g@google.com",
+      "sequence": 0,
+      "eventType": "default"
+    }
+  ]
+}

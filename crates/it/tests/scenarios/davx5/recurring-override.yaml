@@ -1,0 +1,95 @@
+schema_version: 1
+name: davx5-recurring-override
+description: >
+  DAVx5 uploads a weekly series with two weekdays and an excluded date, then an exception for one instance
+  (RECURRENCE-ID in UTC) that it created when the user moved a single occurrence; the series and its exception are one
+  resource.
+client: davx5
+feature: recurring-override
+origin: synthetic
+provenance: >
+  Series is testdata/corpus/davx5-event-utc.ics; the exception is written for this scenario in the form DAVx5 (ical4j)
+  produces: UTC values and the same UID in a second VEVENT.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the series with the exception is uploaded
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/davx5-series.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:+//IDN bitfire.at//DAVx5/4.4.2 ical4j/3.2.19
+        BEGIN:VEVENT
+        DTSTAMP:20270112T163000Z
+        UID:davx5-series-1@example.org
+        SEQUENCE:0
+        SUMMARY:Lauftreff
+        DTSTART:20270303T170000Z
+        DTEND:20270303T180000Z
+        RRULE:FREQ=WEEKLY;WKST=MO;BYDAY=WE,SA
+        EXDATE:20270306T170000Z
+        END:VEVENT
+        BEGIN:VEVENT
+        DTSTAMP:20270113T090000Z
+        UID:davx5-series-1@example.org
+        RECURRENCE-ID:20270310T170000Z
+        SEQUENCE:1
+        SUMMARY:Lauftreff (eine Stunde spaeter)
+        DTSTART:20270310T180000Z
+        DTEND:20270310T190000Z
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the moved instance is found where it is now
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270310T180000Z" end="20270310T190000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/davx5-series.ics": 200
+
+  - name: the excluded date has no instance
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270306T000000Z" end="20270307T000000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 0 }
+
+  - name: the series is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/davx5-series.ics"
+    expect:
+      status: 204

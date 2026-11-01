@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<C:schedule-response xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/" xmlns:ICAL="http://apple.com/ns/ical/"><C:response><C:recipient><D:href>mailto:ben@acme.example</D:href></C:recipient><C:request-status>2.0;Success</C:request-status><C:calendar-data>BEGIN:VCALENDAR&#13;
+VERSION:2.0&#13;
+PRODID:-//Davhaven//EN&#13;
+METHOD:REPLY&#13;
+BEGIN:VFREEBUSY&#13;
+UID:1D7A1C2B-5E1B-4B3C-8D49-0A4F5A6E8C11&#13;
+DTSTAMP:20270301T090000Z&#13;
+DTSTART:20270301T000000Z&#13;
+DTEND:20270302T000000Z&#13;
+ORGANIZER:mailto:anna@acme.example&#13;
+ATTENDEE:mailto:ben@acme.example&#13;
+FREEBUSY;FBTYPE=BUSY:20270301T100000Z/20270301T110000Z&#13;
+END:VFREEBUSY&#13;
+END:VCALENDAR&#13;
+</C:calendar-data></C:response><C:response><C:recipient><D:href>mailto:ghost@acme.example</D:href></C:recipient><C:request-status>3.7;Invalid Calendar User</C:request-status></C:response></C:schedule-response>

@@ -1,0 +1,3 @@
+--
+Sent by {{ tenant.name }}.
+{% if reply_to %}Replies to this message go to {{ reply_to }}.{% else %}Please do not reply to this message, it was sent automatically.{% endif %}

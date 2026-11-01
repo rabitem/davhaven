@@ -1,0 +1,50 @@
+schema_version: 1
+name: caldav-synchronizer-read-only-edit
+description: >
+  A CalDav Synchronizer profile for a calendar the user may only read (a read grant through a group): the profile is set to
+  download only, the privileges show no write privilege, and an attempt to upload a local appointment is refused with 403
+  instead of being silently accepted.
+client: caldav-synchronizer
+feature: read-only-edit
+origin: synthetic
+provenance: >
+  The privilege check of the profile wizard and the refused upload of CalDav Synchronizer on a read-only calendar; the
+  share is the group grant of the fixture world, reached by gary.
+actors:
+  gary: grantee_via_group
+variables:
+  shared: /dav/calendars/{{tenant}}/gary/projects
+steps:
+  - name: the privileges of the calendar do not include writing
+    as: gary
+    request:
+      method: PROPFIND
+      path: "{{shared}}/"
+      headers: { Depth: "0", Content-Type: "text/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:current-user-privilege-set/></D:prop></D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{DAV:}privilege/{DAV:}read" }
+        - { path: "//{DAV:}privilege/{DAV:}write-content", count: 0 }
+
+  - name: an upload is refused
+    as: gary
+    request:
+      method: PUT
+      path: "{{shared}}/cs-readonly.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/caldav-synchronizer-windows-tzid.ics
+    expect:
+      status: 403
+      body_contains: ["need-privileges"]
+
+  - name: nothing was stored
+    as: gary
+    request:
+      method: GET
+      path: "{{shared}}/cs-readonly.ics"
+    expect:
+      status: 404

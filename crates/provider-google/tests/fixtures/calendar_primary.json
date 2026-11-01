@@ -1,0 +1,12 @@
+{
+  "kind": "calendar#calendar",
+  "etag": "\"aBcDeFgHiJkLmN0pQrStUvWxYz0\"",
+  "id": "anna@example.org",
+  "summary": "anna@example.org",
+  "timeZone": "Europe/Berlin",
+  "conferenceProperties": {
+    "allowedConferenceSolutionTypes": [
+      "hangoutsMeet"
+    ]
+  }
+}

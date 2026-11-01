@@ -1,0 +1,84 @@
+schema_version: 1
+name: davx5-invite-external
+description: >
+  DAVx5 uploads a meeting with a guest outside the tenant: the write succeeds, the organizer's copy records that the
+  invitation was queued or mailed (iMIP), nothing is written for the guest on this server, and deleting the meeting
+  cancels it.
+client: davx5
+feature: invite-external
+origin: synthetic
+provenance: >
+  The organizer's object as DAVx5 writes a meeting with an attendee whose address belongs to no principal (PRODID
+  +//IDN bitfire.at//DAVx5/4.4.2 ical4j/3.2.19); no capture of a deployed instance yet. The mail itself is covered by
+  the scheduling matrix.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the meeting with a guest is uploaded
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/davx5-external.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar;charset=utf-8", User-Agent: "DAVx5/4.4.2-ose (dav4jvm; okhttp/4.12.0)" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:+//IDN bitfire.at//DAVx5/4.4.2 ical4j/3.2.19
+        BEGIN:VEVENT
+        UID:davx5-external-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270319T130000Z
+        DTEND:20270319T140000Z
+        SUMMARY:Kundentermin
+        ORGANIZER:mailto:olivia@{{login_domain}}
+        ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=A Guest:mailto:guest@example.net
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the organizer's copy records what happened to the invitation
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/davx5-external.ics"
+    expect:
+      status: 200
+      ical_contains: ["SCHEDULE-STATUS=1.", ":mailto:guest@example.net"]
+      ical_excludes: ["SCHEDULE-STATUS=5."]
+
+  - name: a second upload with a changed time keeps the state of the guest
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/davx5-external.ics"
+      headers: { Content-Type: "text/calendar;charset=utf-8", User-Agent: "DAVx5/4.4.2-ose (dav4jvm; okhttp/4.12.0)" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:+//IDN bitfire.at//DAVx5/4.4.2 ical4j/3.2.19
+        BEGIN:VEVENT
+        UID:davx5-external-1@example.org
+        DTSTAMP:20270101T000000Z
+        SEQUENCE:1
+        DTSTART:20270319T140000Z
+        DTEND:20270319T150000Z
+        SUMMARY:Kundentermin
+        ORGANIZER:mailto:olivia@{{login_domain}}
+        ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=A Guest:mailto:guest@example.net
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the meeting is cancelled by deleting it
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/davx5-external.ics"
+    expect:
+      status: 204

@@ -1,0 +1,13 @@
+{
+  "error": {
+    "code": 404,
+    "message": "Not Found",
+    "errors": [
+      {
+        "message": "Not Found",
+        "domain": "global",
+        "reason": "notFound"
+      }
+    ]
+  }
+}

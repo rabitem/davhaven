@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="{{ locale }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>{% block title %}{% endblock %}</title>
+<link rel="stylesheet" href="/assets/{{ theme }}/page.css">
+</head>
+<body>
+<main>
+<div class="card">
+{% block content %}{% endblock %}
+</div>
+</main>
+{% if tenant is defined %}<footer>
+{% include "_page_footer." ~ locale ~ ".html" %}
+</footer>
+{% endif %}</body>
+</html>

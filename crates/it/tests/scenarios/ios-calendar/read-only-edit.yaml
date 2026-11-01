@@ -1,0 +1,89 @@
+schema_version: 1
+name: ios-calendar-read-only-edit
+description: >
+  A colleague who may only read a shared calendar edits an event in Calendar on iOS: the update with the entity tag it
+  has is refused with 403 and DAV:need-privileges, so is the deletion, the event is unchanged afterwards, and the
+  calendar still synchronizes.
+client: ios-calendar
+feature: read-only-edit
+origin: synthetic
+provenance: >
+  The refusals as Calendar on iOS expects them (the user sees the calendar as read-only after the privilege set was
+  read); the read-only share is rita's accepted grant of the fixture world.
+actors:
+  rita: sharee_read
+variables:
+  shared: /dav/calendars/{{tenant}}/rita/projects
+steps:
+  - name: the sync lists the event with its entity tag
+    as: rita
+    request:
+      method: REPORT
+      path: "{{shared}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:sync-collection xmlns:A="DAV:">
+          <A:sync-token/>
+          <A:sync-level>1</A:sync-level>
+          <A:prop><A:getetag/></A:prop>
+        </A:sync-collection>
+    expect:
+      status: 207
+      statuses:
+        "{{shared}}/shared-event@acme.example.ics": 200
+
+  - name: the event is read
+    as: rita
+    request:
+      method: GET
+      path: "{{shared}}/shared-event@acme.example.ics"
+    capture:
+      etag: { header: ETag }
+    expect:
+      status: 200
+      body_contains: ["SUMMARY:Shared event"]
+
+  - name: the edit of the event is refused
+    as: rita
+    request:
+      method: PUT
+      path: "{{shared}}/shared-event@acme.example.ics"
+      headers: { If-Match: "{{etag}}", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//iOS 18.0//EN
+        BEGIN:VEVENT
+        UID:shared-event@acme.example
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270322T090000Z
+        DTEND:20270322T100000Z
+        SUMMARY:Edited on the phone
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 403
+      body_contains: ["need-privileges"]
+
+  - name: the deletion is refused
+    as: rita
+    request:
+      method: DELETE
+      path: "{{shared}}/shared-event@acme.example.ics"
+      headers: { If-Match: "{{etag}}" }
+    expect:
+      status: 403
+      body_contains: ["need-privileges"]
+
+  - name: the event is unchanged
+    as: rita
+    request:
+      method: GET
+      path: "{{shared}}/shared-event@acme.example.ics"
+    expect:
+      status: 200
+      headers:
+        etag: "{{etag}}"
+      body_contains: ["SUMMARY:Shared event"]
+      body_excludes: ["Edited on the phone"]

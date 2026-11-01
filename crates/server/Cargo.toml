@@ -1,0 +1,106 @@
+[package]
+name = "davhaven-server"
+description = "The Davhaven server binary: configuration, plugin wiring, listeners, workers and CLI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "davhaven"
+path = "src/main.rs"
+
+[features]
+default = ["store-postgres", "store-memory", "mail-smtp", "mail-memory", "templates", "auth-local", "http-egress", "hooks-webhook", "ratelimit-memory", "scanner-eicar", "provider-google", "provider-microsoft", "otlp"]
+auth-local = ["dep:davhaven-auth-local"]
+hooks-webhook = ["dep:davhaven-hooks-webhook"]
+http-egress = ["dep:davhaven-http-egress"]
+mail-memory = ["dep:davhaven-mail-memory"]
+mail-smtp = ["dep:davhaven-mail-smtp"]
+otlp = ["dep:opentelemetry-otlp"]
+provider-fake = ["dep:davhaven-provider-fake"]
+provider-google = ["dep:davhaven-provider-google"]
+provider-microsoft = ["dep:davhaven-provider-microsoft"]
+ratelimit-memory = ["dep:davhaven-ratelimit-memory"]
+scanner-eicar = ["dep:davhaven-scanner-eicar"]
+store-memory = ["dep:davhaven-store-memory"]
+store-postgres = ["dep:davhaven-store-postgres"]
+templates = ["dep:davhaven-templates"]
+
+[dependencies]
+davhaven-api.workspace = true
+davhaven-app.workspace = true
+davhaven-auth-local = { workspace = true, optional = true }
+davhaven-crypto-local.workspace = true
+davhaven-dav.workspace = true
+davhaven-domain.workspace = true
+davhaven-hooks-webhook = { workspace = true, optional = true }
+davhaven-http.workspace = true
+davhaven-http-egress = { workspace = true, optional = true }
+davhaven-mail-memory = { workspace = true, optional = true }
+davhaven-mail-smtp = { workspace = true, optional = true }
+davhaven-mcp.workspace = true
+davhaven-ports.workspace = true
+davhaven-provider-fake = { workspace = true, optional = true }
+davhaven-provider-google = { workspace = true, optional = true }
+davhaven-provider-microsoft = { workspace = true, optional = true }
+davhaven-ratelimit-memory = { workspace = true, optional = true }
+davhaven-scanner-eicar = { workspace = true, optional = true }
+davhaven-store-memory = { workspace = true, optional = true }
+davhaven-store-postgres = { workspace = true, optional = true }
+davhaven-templates = { workspace = true, optional = true }
+davhaven-web.workspace = true
+davhaven-wire.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+base64.workspace = true
+chrono.workspace = true
+clap.workspace = true
+figment.workspace = true
+futures.workspace = true
+humantime-serde.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+ipnet.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+opentelemetry.workspace = true
+# Traces go over OTLP/gRPC (the OTLP default, port 4317) to the collector the operator configures. The transport is chosen
+# once, in the workspace entry; the exporter is the one recorded exception to the HTTP-client rule of R1 (ENGINEERING_RULES R1,
+# ADR-0013, `xtask arch-check`).
+opentelemetry-otlp = { workspace = true, optional = true }
+opentelemetry_sdk.workspace = true
+rustls.workspace = true
+schemars.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util.workspace = true
+tower.workspace = true
+tracing.workspace = true
+tracing-opentelemetry.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+davhaven-crypto-local = { workspace = true, features = ["testing"] }
+davhaven-ports = { workspace = true, features = ["testing"] }
+figment = { workspace = true, features = ["test"] }
+http-body-util.workspace = true
+opentelemetry_sdk = { workspace = true, features = ["testing"] }
+serde-saphyr.workspace = true
+sqlx.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "test-util"] }
+
+[lints]
+workspace = true

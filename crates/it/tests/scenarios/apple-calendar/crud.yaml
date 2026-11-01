@@ -1,0 +1,125 @@
+schema_version: 1
+name: apple-calendar-crud
+description: >
+  Calendar on macOS creates an event, reads it back, changes it with the entity tag it holds, is refused when it
+  works from a stale tag, and deletes it.
+client: apple-calendar
+feature: crud
+origin: synthetic
+provenance: >
+  Request sequence and headers as Calendar on macOS 15 sends them (conditional PUT with If-None-Match: * for a new
+  object, If-Match with the entity tag for changes and deletions); the event body is written for this scenario.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: a new event is created
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/apple-crud-1.ics"
+      headers: { If-None-Match: "*" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//macOS 15.0//EN
+        BEGIN:VEVENT
+        UID:apple-crud-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270315T090000Z
+        DTEND:20270315T100000Z
+        SUMMARY:Standup
+        END:VEVENT
+        END:VCALENDAR
+    capture:
+      etag: { header: ETag }
+    expect:
+      status: 201
+      headers:
+        etag: {}
+
+  - name: the event is read back with the same entity tag
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/apple-crud-1.ics"
+    expect:
+      status: 200
+      headers:
+        etag: "{{etag}}"
+        content-type: { contains: text/calendar }
+      body_contains: ["SUMMARY:Standup", "UID:apple-crud-1@example.org"]
+
+  - name: the members of the calendar list the event with its entity tag
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/macos-propfind-members.xml
+    expect:
+      status: 207
+      properties:
+        - { href: "{{cal}}/apple-crud-1.ics", name: "{DAV:}getetag", value: "{{etag}}" }
+
+  - name: the event is changed with the entity tag that was read
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/apple-crud-1.ics"
+      headers: { If-Match: "{{etag}}" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//macOS 15.0//EN
+        BEGIN:VEVENT
+        UID:apple-crud-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270315T090000Z
+        DTEND:20270315T100000Z
+        SUMMARY:Standup (moved to the big room)
+        END:VEVENT
+        END:VCALENDAR
+    capture:
+      etag2: { header: ETag }
+    expect:
+      status: [200, 204]
+
+  - name: a client that still holds the old entity tag is refused
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/apple-crud-1.ics"
+      headers: { If-Match: "{{etag}}" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//macOS 15.0//EN
+        BEGIN:VEVENT
+        UID:apple-crud-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270315T090000Z
+        DTEND:20270315T100000Z
+        SUMMARY:Lost update
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 412
+
+  - name: the event is deleted with its current entity tag
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/apple-crud-1.ics"
+      headers: { If-Match: "{{etag2}}" }
+    expect:
+      status: 204
+
+  - name: the event is gone
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/apple-crud-1.ics"
+    expect:
+      status: 404

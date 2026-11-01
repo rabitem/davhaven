@@ -1,0 +1,104 @@
+schema_version: 1
+name: apple-calendar-invite-internal
+description: >
+  Calendar on macOS invites a colleague of the same tenant: the write answers with a Schedule-Tag, the colleague finds
+  the invitation in the scheduling inbox and as a copy in the calendar, and the organizer's copy records that it was
+  delivered.
+client: apple-calendar
+feature: invite-internal
+origin: synthetic
+provenance: >
+  The organizer's object as Calendar on macOS writes a new meeting with an attendee (ORGANIZER and ATTENDEE with
+  RSVP=TRUE, PARTSTAT=NEEDS-ACTION); the requests of the colleague are those of Calendar when it refreshes the inbox.
+actors:
+  olivia: owner
+  otto: other_user
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+  inbox: /dav/calendars/{{tenant}}/otto/inbox
+steps:
+  - name: the organizer writes a meeting with a colleague
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/apple-invite-1.ics"
+      headers: { If-None-Match: "*" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//macOS 15.0//EN
+        BEGIN:VEVENT
+        UID:apple-invite-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270316T090000Z
+        DTEND:20270316T100000Z
+        SUMMARY:Planning
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=Olivia Owner;PARTSTAT=ACCEPTED:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=Otto Other;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the organizer's copy says the invitation was delivered
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/apple-invite-1.ics"
+    expect:
+      status: 200
+      ical_contains: ["SCHEDULE-STATUS=1.2:mailto:otto@{{login_domain}}"]
+
+  - name: the colleague finds an item in the scheduling inbox
+    as: otto
+    request:
+      method: PROPFIND
+      path: "{{inbox}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:propfind xmlns:A="DAV:"><A:prop><A:getetag/></A:prop></A:propfind>
+    capture:
+      item: { xpath: "/{DAV:}multistatus/{DAV:}response[2]/{DAV:}href" }
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 2 }
+
+  - name: the item is an invitation
+    as: otto
+    request:
+      method: REPORT
+      path: "{{inbox}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <B:calendar-multiget xmlns:B="urn:ietf:params:xml:ns:caldav" xmlns:A="DAV:">
+          <A:prop><A:getetag/><B:calendar-data/></A:prop>
+          <A:href>{{item}}</A:href>
+        </B:calendar-multiget>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "METHOD:REQUEST" }
+
+  - name: the colleague finds the meeting in the calendar as well
+    as: otto
+    request:
+      method: REPORT
+      path: /dav/calendars/{{tenant}}/otto/personal/
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <B:calendar-query xmlns:B="urn:ietf:params:xml:ns:caldav" xmlns:A="DAV:">
+          <A:prop><A:getetag/><B:calendar-data/></A:prop>
+          <B:filter><B:comp-filter name="VCALENDAR"><B:comp-filter name="VEVENT"/></B:comp-filter></B:filter>
+        </B:calendar-query>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 1 }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "UID:apple-invite-1@example.org" }

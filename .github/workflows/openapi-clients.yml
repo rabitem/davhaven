@@ -1,0 +1,60 @@
+# Client generation smoke (PLAN 4.2): Java and TypeScript clients are generated from docs/openapi.json
+# and compiled, so a construct that generators cannot handle fails here instead of in a consumer. It runs on main when the
+# document or the smoke project changes (and when a maintainer starts it), not for pull requests, and is not a required
+# check. It takes about a minute and overlaps at most the checks of that commit.
+#
+# Runner labels come from `vars.CI_RUNS_ON` (ENGINEERING_RULES R18); without it the job uses GitHub-hosted `ubuntu-latest`.
+# The job runs in a container with limits, which bounds its resources and keeps the Maven plugins and npm packages it
+# resolves off the host; the container is not a security boundary. The image brings Node.js; the JDK and Maven are the
+# ones of its Debian release (the smoke project needs JDK 17 or newer).
+name: OpenAPI clients
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/openapi.json
+      - crates/api/clients/**
+      - .github/workflows/openapi-clients.yml
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: openapi-clients-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  clients:
+    name: openapi-clients
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    container:
+      image: node:24-bookworm@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 6g --memory-swap 6g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 4096
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the JDK and Maven
+        run: |
+          apt-get update --quiet
+          apt-get install --yes --quiet --no-install-recommends default-jdk-headless maven
+      - name: Generate and compile the Java and TypeScript clients
+        run: |
+          java -version
+          mvn -version
+          node --version
+          bash crates/api/clients/smoke.sh
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"

@@ -1,0 +1,93 @@
+schema_version: 1
+name: python-caldav-principal-and-home
+description: >
+  The python `caldav` library given the URL of a principal: it reads the calendar home set, the calendar user address set and
+  the scheduling inbox and outbox, then lists the calendars of the home and reads the owner of one of them.
+client: python-caldav
+feature: account-setup
+origin: synthetic
+provenance: >
+  Ported from the functional tests of python-caldav (tests/test_caldav.py: testGetCalendarHomeSet, testSchedulingInfo,
+  testSchedulingMailboxes, testFindCalendarOwner, testPrincipal); the requests are the PROPFINDs that the library
+  sends for those calls (one property request per call, Depth 0 for the principal and Depth 1 for the home).
+actors:
+  olivia: owner
+variables:
+  principal: /dav/principals/{{tenant}}/olivia/
+  home: /dav/calendars/{{tenant}}/olivia/
+steps:
+  - name: the principal names its calendar home (testGetCalendarHomeSet)
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{principal}}"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-home-set/{DAV:}href", equals: "{{home}}" }
+
+  - name: the principal names its addresses (testSchedulingInfo)
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{principal}}"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-user-address-set/></D:prop></D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-user-address-set/{DAV:}href", contains: "mailto:olivia@{{login_domain}}" }
+
+  - name: the principal names its scheduling mailboxes (testSchedulingMailboxes)
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{principal}}"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><C:schedule-inbox-URL/><C:schedule-outbox-URL/></D:prop>
+        </D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}schedule-inbox-URL/{DAV:}href", equals: "{{home}}inbox/" }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}schedule-outbox-URL/{DAV:}href", equals: "{{home}}outbox/" }
+
+  - name: the calendars of the home are listed (testPrincipal, calendars())
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/><D:displayname/></D:prop></D:propfind>
+    expect:
+      status: 207
+      statuses:
+        "{{home}}personal/": 200
+        "{{home}}projects/": 200
+      xpath:
+        - { path: "//{DAV:}response[{DAV:}href='{{home}}personal/']//{DAV:}resourcetype/{urn:ietf:params:xml:ns:caldav}calendar" }
+
+  - name: the owner of a calendar is its principal (testFindCalendarOwner)
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}personal/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:owner/></D:prop></D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{DAV:}owner/{DAV:}href", contains: "olivia" }

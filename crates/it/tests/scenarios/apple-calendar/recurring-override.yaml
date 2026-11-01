@@ -1,0 +1,89 @@
+schema_version: 1
+name: apple-calendar-recurring-override
+description: >
+  Calendar on macOS stores a weekly series with an excluded date and a moved instance (RECURRENCE-ID), the server
+  keeps the bytes, answers a time-range query for the week of the moved instance and for the week of the excluded
+  one, and the series can be deleted as a whole.
+client: apple-calendar
+feature: recurring-override
+origin: synthetic
+provenance: >
+  Body is testdata/corpus/apple-macos-weekly-override.ics, a reconstruction of what Calendar on macOS writes (see
+  testdata/corpus/README.md); the queries are those of Calendar's week view.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the series with its override is stored
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/apple-weekly.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/apple-macos-weekly-override.ics
+    capture:
+      etag: { header: ETag }
+    expect:
+      status: 201
+
+  - name: the bytes the client wrote are the bytes the server returns
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/apple-weekly.ics"
+    expect:
+      status: 200
+      headers:
+        etag: "{{etag}}"
+      body_contains:
+        - "RECURRENCE-ID;TZID=Europe/Berlin:20270308T100000"
+        - "EXDATE;TZID=Europe/Berlin:20270315T100000"
+        - "SUMMARY:Teamrunde (verschoben)"
+        - "X-WR-ALARMUID:7C6F3E52-1A0B-4C0E-8D3B-9D6C0C1E2A11"
+
+  - name: the week of the moved instance finds the series
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <B:calendar-query xmlns:B="urn:ietf:params:xml:ns:caldav" xmlns:A="DAV:">
+          <A:prop><A:getetag/></A:prop>
+          <B:filter><B:comp-filter name="VCALENDAR"><B:comp-filter name="VEVENT">
+            <B:time-range start="20270308T000000Z" end="20270309T000000Z"/>
+          </B:comp-filter></B:comp-filter></B:filter>
+        </B:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/apple-weekly.ics": 200
+
+  - name: the day of the excluded date finds nothing
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <B:calendar-query xmlns:B="urn:ietf:params:xml:ns:caldav" xmlns:A="DAV:">
+          <A:prop><A:getetag/></A:prop>
+          <B:filter><B:comp-filter name="VCALENDAR"><B:comp-filter name="VEVENT">
+            <B:time-range start="20270315T000000Z" end="20270316T000000Z"/>
+          </B:comp-filter></B:comp-filter></B:filter>
+        </B:calendar-query>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 0 }
+
+  - name: the series is deleted with all its instances
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/apple-weekly.ics"
+    expect:
+      status: 204

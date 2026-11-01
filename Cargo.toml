@@ -1,0 +1,170 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/rabitem/davhaven"
+homepage = "https://github.com/rabitem/davhaven"
+publish = false
+
+# Every dependency of every crate is declared here, once, with an exact version (ENGINEERING_RULES R11).
+# Crates use `name.workspace = true` and may only add features. Only the integrator edits this table.
+[workspace.dependencies]
+# Workspace crates.
+davhaven-api = { path = "crates/api" }
+davhaven-app = { path = "crates/app" }
+davhaven-app-fake = { path = "crates/app-fake" }
+davhaven-auth-local = { path = "crates/auth-local" }
+davhaven-crypto-local = { path = "crates/crypto-local" }
+davhaven-dav = { path = "crates/dav" }
+davhaven-domain = { path = "crates/domain" }
+davhaven-fixtures = { path = "crates/fixtures" }
+davhaven-hooks-webhook = { path = "crates/hooks-webhook" }
+davhaven-http = { path = "crates/http" }
+davhaven-http-egress = { path = "crates/http-egress" }
+davhaven-ical = { path = "crates/ical" }
+davhaven-mail-memory = { path = "crates/mail-memory" }
+davhaven-mail-smtp = { path = "crates/mail-smtp" }
+davhaven-mcp = { path = "crates/mcp" }
+davhaven-mime = { path = "crates/mime" }
+davhaven-port-tests = { path = "crates/port-tests" }
+davhaven-ports = { path = "crates/ports" }
+davhaven-provider-fake = { path = "crates/provider-fake" }
+davhaven-provider-google = { path = "crates/provider-google" }
+davhaven-provider-microsoft = { path = "crates/provider-microsoft" }
+davhaven-ratelimit-memory = { path = "crates/ratelimit-memory" }
+davhaven-scanner-eicar = { path = "crates/scanner-eicar" }
+davhaven-server = { path = "crates/server" }
+davhaven-store-memory = { path = "crates/store-memory" }
+davhaven-store-postgres = { path = "crates/store-postgres" }
+davhaven-templates = { path = "crates/templates" }
+davhaven-testkit = { path = "crates/testkit" }
+davhaven-web = { path = "crates/web" }
+davhaven-wire = { path = "crates/wire" }
+
+# Async runtime and HTTP stack.
+async-trait = "=0.1.92"
+axum = { version = "=0.8.9", features = ["http2", "macros"] }
+bytes = "=1.12.1"
+futures = "=0.3.34"
+http = "=1.5.0"
+http-body-util = "=0.1.5"
+hyper = { version = "=1.12.0", features = ["http1", "http2", "server"] }
+hyper-util = { version = "=0.1.21", features = ["http1", "http2", "server", "server-auto", "server-graceful", "service", "tokio"] }
+tokio = "=1.54.1"
+tokio-util = "=0.7.20"
+tower = { version = "=0.5.3", features = ["limit", "load-shed", "timeout", "util"] }
+tower-http = { version = "=0.7.1", features = ["catch-panic", "cors", "limit", "request-id", "sensitive-headers", "set-header", "timeout", "trace", "util"] }
+
+# Serialization, schemas and contracts.
+schemars = { version = "=1.2.3", features = ["chrono04", "url2", "uuid1"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde-saphyr = "=2.0.0"
+serde_json = "=1.0.154"
+toml = "=1.1.8"
+utoipa = { version = "=6.0.0", features = ["chrono", "macros", "uuid"] }
+utoipa-axum = "=0.3.0"
+
+# Protocols and formats.
+base64 = "=0.23.1"
+calcard = { version = "=0.3.14", default-features = false }
+chrono = { version = "=0.4.45", default-features = false, features = ["clock", "serde", "std"] }
+chrono-tz = { version = "=0.10.4", features = ["serde"] }
+humantime-serde = "=1.1.1"
+ipnet = { version = "=2.12.2", features = ["serde"] }
+lettre = { version = "=0.11.23", default-features = false, features = ["builder"] }
+minijinja = { version = "=3.0.3", features = ["fuel", "json", "loop_controls", "serde", "urlencode"] }
+percent-encoding = "=2.3.2"
+quick-xml = "=0.42.0"
+rmcp = { version = "=3.7.0", default-features = false, features = ["macros", "schemars", "server", "transport-streamable-http-server"] }
+rrule = "=0.14.0"
+url = { version = "=2.5.8", features = ["serde"] }
+uuid = { version = "=1.29.0", features = ["serde", "v5", "v7"] }
+
+# Storage, mail and outbound HTTP. TLS is rustls with the ring provider only (R11).
+reqwest = { version = "=0.13.5", default-features = false, features = ["http2", "rustls-no-provider"] }
+rustls = { version = "=0.23.46", default-features = false, features = ["logging", "ring", "std", "tls12"] }
+sqlx = { version = "=0.9.0", default-features = false, features = ["chrono", "derive", "json", "macros", "migrate", "postgres", "runtime-tokio", "tls-rustls-ring-native-roots", "uuid"] }
+
+# Security.
+argon2 = "=0.6.0"
+chacha20poly1305 = "=0.11.0"
+getrandom = "=0.4.3"
+hkdf = "=0.13.0"
+hmac = "=0.13.0"
+ring = { version = "=0.17.14", default-features = false, features = ["alloc"] }
+secrecy = { version = "=0.10.3", features = ["serde"] }
+sha2 = "=0.11.1"
+subtle = "=2.6.1"
+zeroize = { version = "=1.9.1", features = ["derive"] }
+
+# Errors, configuration and command line.
+clap = { version = "=4.6.7", features = ["derive", "env"] }
+figment = { version = "=0.10.19", features = ["env", "toml"] }
+thiserror = "=2.0.21"
+
+# Observability.
+metrics = "=0.24.6"
+metrics-exporter-prometheus = { version = "=0.18.3", default-features = false }
+opentelemetry = { version = "=0.33.1", default-features = false, features = ["trace"] }
+opentelemetry-otlp = { version = "=0.33.1", default-features = false, features = ["grpc-tonic", "trace"] }
+opentelemetry_sdk = { version = "=0.33.1", default-features = false, features = ["rt-tokio", "trace"] }
+tracing = "=0.1.44"
+tracing-opentelemetry = { version = "=0.34.0", default-features = false }
+tracing-subscriber = { version = "=0.3.23", features = ["env-filter", "json"] }
+
+# Tests and tooling.
+cargo_metadata = "=0.23.1"
+insta = { version = "=1.49.0", features = ["json"] }
+proptest = "=1.12.0"
+tempfile = "=3.27.0"
+wiremock = "=0.6.5"
+
+# `cargo machete` (the `checks` job of CI) looks for a dependency by the name of its crate in the source of the crate that declares
+# it. These are used in a way it cannot see: `#[serde(with = "humantime_serde")]` names the crate inside a string.
+[workspace.metadata.cargo-machete]
+ignored = ["humantime-serde"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+unreachable_pub = "warn"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+await_holding_lock = "deny"
+disallowed_methods = "deny"
+disallowed_types = "deny"
+string_slice = "deny"
+indexing_slicing = "deny"
+clone_on_ref_ptr = "warn"
+large_futures = "warn"
+cast_possible_truncation = "warn"
+as_conversions = "warn"
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+lto = "thin"
+strip = "debuginfo"

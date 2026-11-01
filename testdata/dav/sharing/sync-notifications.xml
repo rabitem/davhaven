@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<A:sync-collection xmlns:A="DAV:">
+  <A:sync-token/>
+  <A:sync-level>1</A:sync-level>
+  <A:prop>
+    <A:getetag/>
+    <A:getcontenttype/>
+    <B:notificationtype xmlns:B="http://calendarserver.org/ns/"/>
+  </A:prop>
+</A:sync-collection>

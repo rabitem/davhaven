@@ -1,0 +1,15 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example//Unicode//EN
+BEGIN:VEVENT
+UID:utf8-folded-1
+DTSTAMP:20270101T000000Z
+DTSTART:20270301T100000Z
+DTEND:20270301T110000Z
+SUMMARY:日本語の会議 – Größe, Ärger, Æther, 😀
+DESCRIPTION:Erste Zeile\nZweite Zeile mit Umlauten äöüß und einem langen Text, der mitten in e
+ inem Wort umbrochen wird und danach noch weitergeht. Dazu ein Emoji 😀 und ein Absatz\;
+  mit Semikolon\, Komma.
+LOCATION:Zürich\, Bahnhofstrasse 1
+END:VEVENT
+END:VCALENDAR

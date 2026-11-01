@@ -1,0 +1,5 @@
+master: created [-]
+added attendees: /dav/principals/example/bob/, mailto:cleo@example.org
+removed attendees: -
+cancelled instances: -
+needs sequence bump: false

@@ -1,0 +1,36 @@
+[package]
+name = "davhaven-dav"
+description = "Davhaven WebDAV and CalDAV protocol router."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-app.workspace = true
+davhaven-domain.workspace = true
+davhaven-http.workspace = true
+davhaven-ical.workspace = true
+axum.workspace = true
+base64.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+quick-xml.workspace = true
+tokio = { workspace = true, features = ["rt", "time"] }
+tower.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+davhaven-app-fake.workspace = true
+davhaven-fixtures.workspace = true
+proptest.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "test-util", "time"] }
+tower.workspace = true
+
+[lints]
+workspace = true

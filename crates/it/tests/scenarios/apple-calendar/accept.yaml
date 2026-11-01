@@ -1,0 +1,103 @@
+schema_version: 1
+name: apple-calendar-accept
+description: >
+  A colleague accepts an invitation in Calendar on macOS: the client writes its own copy with PARTSTAT=ACCEPTED under
+  the Schedule-Tag it read, the write is answered without a conflict, and the organizer's copy shows the answer.
+client: apple-calendar
+feature: accept
+origin: synthetic
+provenance: >
+  The attendee's write as Calendar on macOS makes it when the user presses Accept: the whole object with the changed
+  PARTSTAT and If-Schedule-Tag-Match; the organizer's write is the one of apple-calendar-invite-internal.
+actors:
+  olivia: owner
+  otto: other_user
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+  mine: /dav/calendars/{{tenant}}/otto/personal
+steps:
+  - name: the organizer invites the colleague
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/apple-accept-1.ics"
+      headers: { If-None-Match: "*" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//macOS 15.0//EN
+        BEGIN:VEVENT
+        UID:apple-accept-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270317T090000Z
+        DTEND:20270317T100000Z
+        SUMMARY:Review
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the colleague finds the copy of the meeting
+    as: otto
+    request:
+      method: REPORT
+      path: "{{mine}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <B:calendar-query xmlns:B="urn:ietf:params:xml:ns:caldav" xmlns:A="DAV:">
+          <A:prop><A:getetag/></A:prop>
+          <B:filter><B:comp-filter name="VCALENDAR"><B:comp-filter name="VEVENT"/></B:comp-filter></B:filter>
+        </B:calendar-query>
+    capture:
+      copy: { xpath: "/{DAV:}multistatus/{DAV:}response/{DAV:}href" }
+    expect:
+      status: 207
+
+  - name: the copy carries a Schedule-Tag
+    as: otto
+    request:
+      method: GET
+      path: "{{copy}}"
+    capture:
+      tag: { header: Schedule-Tag }
+    expect:
+      status: 200
+      headers:
+        schedule-tag: {}
+      ical_contains: ["PARTSTAT=NEEDS-ACTION"]
+
+  - name: the colleague accepts
+    as: otto
+    request:
+      method: PUT
+      path: "{{copy}}"
+      headers: { If-Schedule-Tag-Match: "{{tag}}" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//macOS 15.0//EN
+        BEGIN:VEVENT
+        UID:apple-accept-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270317T090000Z
+        DTEND:20270317T100000Z
+        SUMMARY:Review
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;PARTSTAT=ACCEPTED;RSVP=TRUE:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the organizer's copy shows the answer
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/apple-accept-1.ics"
+    expect:
+      status: 200
+      ical_contains: ["PARTSTAT=ACCEPTED", "mailto:otto@{{login_domain}}"]
+      ical_excludes: ["PARTSTAT=NEEDS-ACTION"]

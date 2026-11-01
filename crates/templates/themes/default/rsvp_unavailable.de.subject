@@ -1,0 +1,1 @@
+{% if status == 429 %}Bitte warten{% elif status >= 500 %}Nicht verfügbar{% elif status == 404 or status == 410 %}Link nicht gültig{% else %}Anfrage abgelehnt{% endif %}

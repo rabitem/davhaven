@@ -1,0 +1,70 @@
+schema_version: 1
+name: ios-calendar-crud
+description: >
+  Calendar on iOS stores an all-day event that repeats every year, with the default alarm that carries the
+  1976 trigger date, and reads it back byte for byte; an all-day query for the day finds it and the event is deleted.
+client: ios-calendar
+feature: crud
+origin: synthetic
+provenance: >
+  Body is testdata/corpus/apple-ios-allday-yearly.ics, a reconstruction of what Calendar on iOS 17 writes (see
+  testdata/corpus/README.md).
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the all-day series is stored
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ios-allday.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/apple-ios-allday-yearly.ics
+    capture:
+      etag: { header: ETag }
+    expect:
+      status: 201
+
+  - name: the bytes are returned as written
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/ios-allday.ics"
+    expect:
+      status: 200
+      headers:
+        etag: "{{etag}}"
+      ical_contains:
+        - "DTSTART;VALUE=DATE:20270315"
+        - "RRULE:FREQ=YEARLY"
+        - "TRIGGER;VALUE=DATE-TIME:19760401T005545Z"
+        - "X-APPLE-DEFAULT-ALARM:TRUE"
+
+  - name: the query for the day finds the event
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <B:calendar-query xmlns:B="urn:ietf:params:xml:ns:caldav" xmlns:A="DAV:">
+          <A:prop><A:getetag/></A:prop>
+          <B:filter><B:comp-filter name="VCALENDAR"><B:comp-filter name="VEVENT">
+            <B:time-range start="20270315T000000Z" end="20270316T000000Z"/>
+          </B:comp-filter></B:comp-filter></B:filter>
+        </B:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/ios-allday.ics": 200
+
+  - name: the event is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/ios-allday.ics"
+      headers: { If-Match: "{{etag}}" }
+    expect:
+      status: 204

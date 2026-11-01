@@ -1,0 +1,39 @@
+{
+  "kind": "calendar#calendarList",
+  "etag": "\"p33g4v0d1k4q9u0g\"",
+  "nextSyncToken": "CMD4gKCC8oEDEAAYASD0lJPBz-bmAyi0AQ==",
+  "items": [
+    {
+      "kind": "calendar#calendarListEntry",
+      "etag": "\"1700000000000000\"",
+      "id": "family12345678901234567890@group.calendar.google.com",
+      "summary": "Family",
+      "timeZone": "Europe/Berlin",
+      "colorId": "12",
+      "backgroundColor": "#9fe1e7",
+      "foregroundColor": "#000000",
+      "selected": true,
+      "accessRole": "reader"
+    },
+    {
+      "kind": "calendar#calendarListEntry",
+      "etag": "\"1700000000000001\"",
+      "id": "anna@example.org",
+      "summary": "anna@example.org",
+      "summaryOverride": "Anna",
+      "timeZone": "Europe/Berlin",
+      "colorId": "14",
+      "backgroundColor": "#9a9cff",
+      "foregroundColor": "#000000",
+      "selected": true,
+      "accessRole": "owner",
+      "defaultReminders": [
+        {
+          "method": "popup",
+          "minutes": 10
+        }
+      ],
+      "primary": true
+    }
+  ]
+}

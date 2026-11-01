@@ -1,0 +1,185 @@
+schema_version: 1
+name: thunderbird-sync-by-ctag
+description: >
+  Thunderbird polls a calendar by its CTag: it stores the CTag and the entity tags, asks for the CTag again and lists
+  the calendar only when it changed. A write of another device moves the CTag and gives the changed event a new entity
+  tag, and a CTag that is stale (the client was away) leads to a listing, which is what the client compares.
+client: thunderbird
+feature: sync-after-token-expiry
+origin: synthetic
+provenance: >
+  The poll of Thunderbird: PROPFIND of the calendar for getctag and DAV:sync-token, then a calendar-query for the
+  entity tags; the CTag semantics are those of PLAN 2.7. A client that has no usable token starts from a listing.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/tb-poll
+steps:
+  - name: a calendar is created for the scenario
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{cal}}/"
+    expect:
+      status: 201
+
+  - name: the first event is written by another device
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/one.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8", User-Agent: "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Thunderbird/128.5.0" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+        BEGIN:VEVENT
+        UID:tb-poll-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270310T090000Z
+        DTEND:20270310T100000Z
+        SUMMARY:One
+        END:VEVENT
+        END:VCALENDAR
+    capture:
+      etag1: { header: ETag }
+    expect:
+      status: 201
+
+  - name: the client reads the CTag
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8", User-Agent: "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Thunderbird/128.5.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/"><D:prop><CS:getctag/><D:sync-token/></D:prop></D:propfind>
+    capture:
+      ctag0: { xpath: "//{http://calendarserver.org/ns/}getctag" }
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{http://calendarserver.org/ns/}getctag" }
+
+  - name: it lists the entity tags
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8", User-Agent: "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Thunderbird/128.5.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"/></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/one.ics": 200
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 1 }
+
+  - name: another device changes the event and adds a second one
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/one.ics"
+      headers: { If-Match: "{{etag1}}", Content-Type: "text/calendar; charset=utf-8", User-Agent: "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Thunderbird/128.5.0" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+        BEGIN:VEVENT
+        UID:tb-poll-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270310T090000Z
+        DTEND:20270310T100000Z
+        SUMMARY:One (changed)
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the second event
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/two.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8", User-Agent: "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Thunderbird/128.5.0" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+        BEGIN:VEVENT
+        UID:tb-poll-2@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270311T090000Z
+        DTEND:20270311T100000Z
+        SUMMARY:Two
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the CTag is different now, so the client lists the calendar again
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8", User-Agent: "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Thunderbird/128.5.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/"><D:prop><CS:getctag/><D:sync-token/></D:prop></D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{http://calendarserver.org/ns/}getctag", not_equals: "{{ctag0}}" }
+
+  - name: the listing shows both events
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8", User-Agent: "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Thunderbird/128.5.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"/></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/one.ics": 200
+        "{{cal}}/two.ics": 200
+
+  - name: an update with the entity tag from before the change is refused
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/one.ics"
+      headers: { If-Match: "{{etag1}}", Content-Type: "text/calendar; charset=utf-8", User-Agent: "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Thunderbird/128.5.0" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+        BEGIN:VEVENT
+        UID:tb-poll-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270310T090000Z
+        DTEND:20270310T100000Z
+        SUMMARY:One (stale update)
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 412
+
+  - name: the calendar is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/"
+    expect:
+      status: 204

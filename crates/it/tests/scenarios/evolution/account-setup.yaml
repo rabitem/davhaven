@@ -1,0 +1,52 @@
+schema_version: 1
+name: evolution-account-setup
+description: >
+  Evolution (GNOME) adds a CalDAV calendar by URL: it probes the URL with OPTIONS, then asks the collection with a Depth 0
+  PROPFIND for its type and components, and finds the calendars below the home with a Depth 1 PROPFIND.
+client: evolution
+feature: account-setup
+origin: synthetic
+provenance: >
+  Body is testdata/dav/evolution-propfind-calendar.xml, a reconstruction of the property request of Evolution's
+  CalDAV backend (libedata-cal); the OPTIONS probe is the one of libsoup-based clients.
+actors:
+  olivia: owner
+variables:
+  home: /dav/calendars/{{tenant}}/olivia/
+steps:
+  - name: the URL is probed
+    as: olivia
+    request:
+      method: OPTIONS
+      path: "{{home}}personal/"
+    expect:
+      status: [200, 204]
+      headers:
+        dav: { contains: calendar-access }
+        allow: { contains: PROPFIND }
+
+  - name: the collection says what it is
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}personal/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/evolution-propfind-calendar.xml
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{DAV:}resourcetype/{urn:ietf:params:xml:ns:caldav}calendar" }
+        - { path: "//{DAV:}displayname", equals: "Personal" }
+
+  - name: the home lists the calendars
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/evolution-propfind-calendar.xml
+    expect:
+      status: 207
+      statuses:
+        "{{home}}personal/": 200
+        "{{home}}projects/": 200

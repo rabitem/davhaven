@@ -1,0 +1,46 @@
+schema_version: 1
+name: apple-calendar-account-setup
+description: >
+  Calendar on macOS adds a CalDAV account with a user name and an app password: the well-known redirect, the 401
+  challenge, discovery of the principal behind the login, then of its home and the calendars in it.
+client: apple-calendar
+feature: account-setup
+origin: synthetic
+provenance: >
+  Request order and bodies as Calendar on macOS 15 sends them, reconstructed from the property lists of public
+  traces (testdata/dav/README.md); no capture of a deployed instance yet.
+actors:
+  olivia: owner
+steps:
+  - name: the well-known URL redirects to the entry point
+    request:
+      method: GET
+      path: /.well-known/caldav
+    expect:
+      status: 301
+      headers:
+        location: { contains: /dav/ }
+
+  - name: the entry point asks for credentials
+    request:
+      method: PROPFIND
+      path: /dav/
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/macos-propfind-entry.xml
+    expect:
+      status: 401
+      headers:
+        www-authenticate: { contains: Basic }
+
+  - name: the principal of the login is found
+    as: olivia
+    request:
+      method: PROPFIND
+      path: /dav/
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/macos-propfind-entry.xml
+    expect:
+      status: 207
+      xpath:
+        - path: "/{DAV:}multistatus/{DAV:}response/{DAV:}propstat/{DAV:}prop/{DAV:}current-user-principal/{DAV:}href"
+          equals: "/dav/principals/{{tenant}}/olivia/"

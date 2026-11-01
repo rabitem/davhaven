@@ -1,0 +1,15 @@
+{% if update %}{{ organizer.name }} has updated an invitation for you.{% else %}{{ organizer.name }} invites you to an event.{% endif %}
+
+{{ event.summary }}
+When: {{ when(event.start, event.end) }}
+{% if event.location %}Where: {{ event.location }}
+{% endif %}Organizer: {{ organizer.name }}
+{% if event.description %}
+{{ event.description }}
+{% endif %}{% if rsvp_url %}
+Please let {{ organizer.name }} know whether you can attend:
+{{ rsvp_url }}
+{% endif %}
+Your calendar application can also add this event from the attached invitation (invite.ics).
+
+{% include "_footer." ~ locale ~ ".txt" %}

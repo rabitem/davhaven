@@ -1,0 +1,72 @@
+# Retention of the container images in GHCR (PLAN 4.5): release tags stay, the newest 30 `main-*` builds stay, and so does
+# every version younger than 30 days, whatever its tags. Everything else goes. The rules need nothing from outside this
+# repository: no deployment repository has to tag what it ran. The rules and the reason for each are in
+# scripts/ghcr-retention.sh, which also checks them against sample data.
+#
+# A run started by hand is a dry run unless the input says otherwise; the weekly run deletes. The script refuses to
+# delete every version of the package or more than 100 versions at once.
+#
+# Where the job runs: on the runners that `vars.CI_RUNS_ON` names, like every other job of the repository, and on a
+# GitHub-hosted runner when the variable is unset (ENGINEERING_RULES R18). An organisation without a budget for hosted
+# runners has such a job refused ("The job was not started because an Actions budget is preventing further use"), and a
+# retention that never starts never deletes anything. Nothing about the job asks for a runner of its own. Its token is the
+# `GITHUB_TOKEN` of the job: it is scoped to the job and to the `permissions` below and expires with the job, so it is
+# lent for the seconds that the job runs and kept by nobody; and the image job of release.yml holds `packages: write` on
+# the same runners already, to push the images that this job prunes.
+#
+# The job runs in a container, like the jobs that build: a runner chosen by the variable is not expected to have more than
+# the repository documents (CONTRIBUTING.md), and this job needs `gh` and `jq`, which a hosted runner brings and the
+# container installs. The image is the one of openapi-clients.yml (one digest per image), with the limits of the other
+# jobs; the container is not a security boundary.
+name: GHCR retention
+
+on:
+  schedule:
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List what would be deleted and delete nothing"
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: ghcr-retention
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  retention:
+    name: retention
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    container:
+      image: node:24-bookworm@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413
+      options: --cpus 1 --memory 1g --memory-swap 1g --cpu-shares 256 --oom-score-adj 500 --pids-limit 512
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the GitHub CLI and jq
+        run: |
+          apt-get update --quiet
+          apt-get install --yes --quiet --no-install-recommends gh jq
+      - name: The rules still do what they say
+        run: bash scripts/ghcr-retention.sh --self-test
+      - name: Apply the rules to the package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: bash scripts/ghcr-retention.sh
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"

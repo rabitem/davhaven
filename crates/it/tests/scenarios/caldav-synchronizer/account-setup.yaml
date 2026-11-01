@@ -1,0 +1,54 @@
+schema_version: 1
+name: caldav-synchronizer-account-setup
+description: >
+  CalDav Synchronizer is configured with the URL of a calendar and a user name: it reads the collection (resource type,
+  display name, supported components, colour, CTag) to offer it in its profile, and checks the privileges before it
+  decides whether the profile can write.
+client: caldav-synchronizer
+feature: account-setup
+origin: synthetic
+provenance: >
+  The collection probe of CalDav Synchronizer's profile wizard, reconstructed from its public source; no capture of a
+  deployed instance yet.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the collection is probed
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "0", Content-Type: "text/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8"?>
+        <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/" xmlns:I="http://apple.com/ns/ical/">
+          <D:prop>
+            <D:resourcetype/>
+            <D:displayname/>
+            <CS:getctag/>
+            <C:supported-calendar-component-set/>
+            <I:calendar-color/>
+            <D:current-user-privilege-set/>
+          </D:prop>
+        </D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{DAV:}resourcetype/{urn:ietf:params:xml:ns:caldav}calendar" }
+        - { path: "//{DAV:}displayname", equals: "Personal" }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}supported-calendar-component-set/{urn:ietf:params:xml:ns:caldav}comp[@name='VEVENT']" }
+        - { path: "//{DAV:}privilege/{DAV:}write-content" }
+
+  - name: the profile can sync with an ETag listing
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "text/xml; charset=utf-8" }
+      body_file: dav/macos-propfind-members.xml
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/personal-event@acme.example.ics": 200

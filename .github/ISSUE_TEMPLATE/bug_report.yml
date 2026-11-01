@@ -1,0 +1,34 @@
+name: Bug report
+description: Something does not work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Security vulnerabilities must not be reported in public issues; use the private reporting described in SECURITY.md instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Describe the observed behaviour and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Requests, client (for example Apple Calendar, DAVx5, Thunderbird) and configuration needed to reproduce. Remove credentials and personal data.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Image tag, or the commit if you built from source (`davhaven --version` shows the version).
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant log lines (request id helps). Remove tokens and personal data.
+      render: text

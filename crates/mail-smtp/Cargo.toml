@@ -1,0 +1,33 @@
+[package]
+name = "davhaven-mail-smtp"
+description = "Davhaven SMTP mail transport (lettre, rustls)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-domain.workspace = true
+davhaven-mime.workspace = true
+davhaven-ports.workspace = true
+async-trait.workspace = true
+humantime-serde.workspace = true
+lettre = { workspace = true, features = ["ring", "rustls-platform-verifier", "smtp-transport", "tokio1", "tokio1-rustls"] }
+schemars.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
+tracing.workspace = true
+
+[dev-dependencies]
+base64.workspace = true
+davhaven-port-tests.workspace = true
+davhaven-ports = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt", "time"] }
+
+[lints]
+workspace = true

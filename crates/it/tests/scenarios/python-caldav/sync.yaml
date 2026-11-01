@@ -1,0 +1,169 @@
+schema_version: 1
+name: python-caldav-sync-token
+description: >
+  The python `caldav` library synchronizes a calendar with sync tokens (objects_by_sync_token): the first call returns every
+  object and a token, the second returns the changes since, and a token that the server refuses (403 with the
+  precondition DAV:valid-sync-token) makes the library fall back to a full listing, which works.
+client: python-caldav
+feature: sync-after-token-expiry
+origin: synthetic
+provenance: >
+  Written after the sync support of python-caldav (objects_by_sync_token, RFC 6578) and the refusal rules of PLAN 2.7;
+  the library sends sync-collection with an empty token first, then with the token it stored.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/pysync
+steps:
+  - name: a calendar is made
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{cal}}/"
+    expect:
+      status: 201
+
+  - name: two events are saved
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/a.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//python-caldav//caldav//EN
+        BEGIN:VEVENT
+        UID:py-sync-a@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270327T090000Z
+        DTEND:20270327T100000Z
+        SUMMARY:A
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the second event
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/b.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//python-caldav//caldav//EN
+        BEGIN:VEVENT
+        UID:py-sync-b@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270328T090000Z
+        DTEND:20270328T100000Z
+        SUMMARY:B
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the first synchronization returns both objects and a token
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token/>
+          <D:sync-level>1</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    capture:
+      token: { xpath: "/{DAV:}multistatus/{DAV:}sync-token" }
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/a.ics": 200
+        "{{cal}}/b.ics": 200
+
+  - name: one event changes
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/a.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//python-caldav//caldav//EN
+        BEGIN:VEVENT
+        UID:py-sync-a@example.org
+        DTSTAMP:20270102T000000Z
+        DTSTART:20270327T100000Z
+        DTEND:20270327T110000Z
+        SUMMARY:A (later)
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the second synchronization returns the changed object only
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token>{{token}}</D:sync-token>
+          <D:sync-level>1</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/a.ics": 200
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 1 }
+
+  - name: a token of the right form for a calendar that does not exist here is refused
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token>urn:davhaven:sync:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:3</D:sync-token>
+          <D:sync-level>1</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    expect:
+      status: 403
+      body_contains: ["valid-sync-token"]
+
+  - name: the library falls back to a full listing
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token/>
+          <D:sync-level>1</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/a.ics": 200
+        "{{cal}}/b.ics": 200
+
+  - name: the calendar is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/"
+    expect:
+      status: 204

@@ -1,0 +1,12 @@
+/target/
+**/*.rs.bk
+*.profraw
+*.profdata
+/lcov.info
+/coverage/
+*.pending-snap
+*.snap.new
+.idea/
+.vscode/
+.DS_Store
+/.env

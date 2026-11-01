@@ -1,0 +1,10 @@
+{
+  "error": "invalid_grant",
+  "error_description": "AADSTS70008: The provided authorization code or refresh token has expired due to inactivity. Send a new interactive authorization request for this user and resource.\r\nTrace ID: 0b0c0d0e-0000-0000-0000-000000000001\r\nCorrelation ID: 0b0c0d0e-0000-0000-0000-000000000002\r\nTimestamp: 2026-10-28 09:00:00Z",
+  "error_codes": [
+    70008
+  ],
+  "timestamp": "2026-10-28 09:00:00Z",
+  "trace_id": "0b0c0d0e-0000-0000-0000-000000000001",
+  "correlation_id": "0b0c0d0e-0000-0000-0000-000000000002"
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<propfind xmlns="DAV:" xmlns:CAL="urn:ietf:params:xml:ns:caldav">
+  <prop>
+    <current-user-principal/>
+    <CAL:calendar-home-set/>
+    <CAL:calendar-user-address-set/>
+    <group-membership/>
+    <displayname/>
+  </prop>
+</propfind>

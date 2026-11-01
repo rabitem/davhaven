@@ -1,0 +1,54 @@
+# cargo-deny configuration (ENGINEERING_RULES R6, R11). CI runs `cargo deny --all-features check`.
+
+[graph]
+all-features = true
+
+[advisories]
+# Unmaintained crates are reported for direct dependencies; yanked versions are errors.
+unmaintained = "workspace"
+yanked = "deny"
+ignore = []
+
+[licenses]
+# Permissive licenses only. Additions need a pull request that explains why.
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CDLA-Permissive-2.0",
+  "ISC",
+  "MIT",
+  "Unicode-3.0",
+  "Zlib",
+  "0BSD",
+]
+confidence-threshold = 0.93
+# The libFuzzer runtime is licensed `(MIT OR Apache-2.0) AND NCSA`. It is only a dependency of the fuzz package
+# (`crates/ical/fuzz`, outside the workspace), never of anything that is built into a release.
+exceptions = [{ allow = ["NCSA"], crate = "libfuzzer-sys" }]
+
+[licenses.private]
+# Workspace crates are not published; their license is checked through `workspace.package`.
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+highlight = "all"
+deny = [
+  # One TLS stack: rustls with the ring provider (R11).
+  { crate = "openssl-sys", reason = "rustls with the ring provider is the only TLS stack (R11)" },
+  { crate = "openssl", reason = "rustls with the ring provider is the only TLS stack (R11)" },
+  { crate = "native-tls", reason = "rustls with the ring provider is the only TLS stack (R11)" },
+  { crate = "aws-lc-rs", reason = "ring is the only rustls crypto provider (R11)" },
+  { crate = "aws-lc-sys", reason = "ring is the only rustls crypto provider (R11)" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

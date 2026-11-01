@@ -1,0 +1,13 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Calendar//EN
+METHOD:REPLY
+BEGIN:VEVENT
+UID:itip-single@example.org
+DTSTAMP:20270210T080000Z
+SEQUENCE:0
+ORGANIZER;CN=Anna Beispiel:mailto:anna@example.org
+ATTENDEE;CN=Bob Beispiel;PARTSTAT=DECLINED:mailto:bob@example.org
+COMMENT:Sorry\, a clash with the audit
+END:VEVENT
+END:VCALENDAR

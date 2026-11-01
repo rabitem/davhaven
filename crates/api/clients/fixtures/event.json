@@ -1,0 +1,45 @@
+{
+  "id": "018f3c1e-7b2a-7c3d-9e4f-0123456789ab",
+  "calendar_id": "018f3c1e-7b2a-7c3d-9e4f-0123456789ac",
+  "uri": "standup.ics",
+  "external_key": "standup-2027",
+  "etag": "\"AAAAAAAAAAAAAAAAAAAAAA\"",
+  "dav_url": "https://cal.example.org/dav/calendars/acme/team/team-calendar/standup.ics",
+  "created_at": "2027-02-01T08:00:00Z",
+  "updated_at": "2027-02-02T09:30:00Z",
+  "uid": "standup-2027@example.org",
+  "summary": "Standup",
+  "description": "Daily sync",
+  "location": "Room 1",
+  "start": {"date_time": "2027-03-01T10:00:00", "time_zone": "Europe/Berlin"},
+  "end": {"date_time": "2027-03-01T10:15:00", "time_zone": "Europe/Berlin"},
+  "status": "confirmed",
+  "transparency": "opaque",
+  "class": "public",
+  "recurrence": {
+    "rrule": "FREQ=DAILY;COUNT=5",
+    "exdates": [{"date_time": "2027-03-03T10:00:00", "time_zone": "Europe/Berlin"}]
+  },
+  "organizer": {"address": "mailto:olivia@acme.example", "common_name": "Olivia"},
+  "attendees": [
+    {
+      "address": "mailto:mia@acme.example",
+      "partstat": "accepted",
+      "role": "req_participant",
+      "cutype": "individual",
+      "rsvp": true
+    },
+    {"address": "mailto:guest@example.org", "partstat": "needs_action"}
+  ],
+  "categories": ["work"],
+  "url": "https://example.org/standup",
+  "sequence": 2,
+  "alarms": [
+    {
+      "action": "display",
+      "description": "Soon",
+      "trigger": {"type": "relative", "offset": "-PT15M", "related": "start"}
+    },
+    {"action": "audio", "trigger": {"type": "absolute", "at": "2027-03-01T08:00:00Z"}}
+  ]
+}

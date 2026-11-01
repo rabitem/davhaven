@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CS:notification xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/">
+  <CS:dtstamp>20270101T000300Z</CS:dtstamp>
+  <CS:invite-notification>
+    <CS:uid>7b2c4f10-4d2e-4f55-9a3e-0d3b2a6c1e11</CS:uid>
+    <D:href>mailto:ben@acme.example</D:href>
+    <CS:invite-noresponse/>
+    <CS:access><CS:read-write/></CS:access>
+    <CS:hosturl><D:href>/dav/calendars/acme/anna/work/</D:href></CS:hosturl>
+    <CS:organizer><D:href>mailto:anna@acme.example</D:href><CS:common-name>Anna Acme</CS:common-name></CS:organizer>
+    <CS:summary>Work</CS:summary>
+    <CS:supported-calendar-component-set><C:comp name="VEVENT"/><C:comp name="VTODO"/></CS:supported-calendar-component-set>
+  </CS:invite-notification>
+</CS:notification>

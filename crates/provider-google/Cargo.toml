@@ -1,0 +1,31 @@
+[package]
+name = "davhaven-provider-google"
+description = "Davhaven Google Calendar provider (OAuth and pull import)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-ports.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+chrono-tz.workspace = true
+http.workspace = true
+schemars.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+davhaven-port-tests.workspace = true
+davhaven-ports = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,31 @@
+[package]
+name = "davhaven-web"
+description = "Davhaven public web surface: RSVP pages, subscription feeds, OAuth callbacks and assets."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-app.workspace = true
+davhaven-domain.workspace = true
+davhaven-http.workspace = true
+davhaven-wire.workspace = true
+axum.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+async-trait.workspace = true
+davhaven-app-fake.workspace = true
+http-body-util.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
+tower.workspace = true
+
+[lints]
+workspace = true

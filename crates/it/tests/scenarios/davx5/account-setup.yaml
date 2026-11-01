@@ -1,0 +1,57 @@
+schema_version: 1
+name: davx5-account-setup
+description: >
+  DAVx5 logs in with a base URL and credentials: it follows the well-known URL, asks the principal for the calendar home,
+  the address set and the group memberships, and lists the calendars it will sync (resource type, supported components,
+  colour, privileges).
+client: davx5
+feature: account-setup
+origin: synthetic
+provenance: >
+  Bodies as DAVx5 4.4 sends them (testdata/dav/davx5-propfind-home-set.xml and the calendar listing of its
+  CalDAV resource finder, reconstructed from the public source code of DAVx5 and its traces); no capture of a deployed
+  instance yet. DAVx5 starts from the principal URL when the user enters one, which is what this scenario does.
+actors:
+  olivia: owner
+variables:
+  principal: /dav/principals/{{tenant}}/olivia/
+  home: /dav/calendars/{{tenant}}/olivia/
+steps:
+  - name: the well-known URL redirects
+    request:
+      method: GET
+      path: /.well-known/caldav
+    expect:
+      status: 301
+      headers:
+        location: { contains: /dav/ }
+
+  - name: the principal names its home and its addresses
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{principal}}"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/davx5-propfind-home-set.xml
+    expect:
+      status: 207
+      xpath:
+        - path: "//{urn:ietf:params:xml:ns:caldav}calendar-home-set/{DAV:}href"
+          equals: "{{home}}"
+        - path: "//{urn:ietf:params:xml:ns:caldav}calendar-user-address-set/{DAV:}href"
+          contains: "mailto:olivia@{{login_domain}}"
+        - path: "//{DAV:}displayname"
+          equals: "Olivia Owner"
+
+  - name: the home is listed for calendars
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/evolution-propfind-calendar.xml
+    expect:
+      status: 207
+      statuses:
+        "{{home}}personal/": 200
+        "{{home}}projects/": 200

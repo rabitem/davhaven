@@ -1,0 +1,291 @@
+# Pull request and main-branch checks (PLAN 3.7), in few jobs because runner time is the scarce resource: `checks`
+# (everything that needs no database, in one build cache), then `test` (nextest and the doctests on PostgreSQL), then, on
+# main, `release` (the image is built, smoke-tested and pushed: release.yml) and `coverage`. The jobs run one after the
+# other, so a run holds one runner at a time (two at the end: the release and the coverage), and a run whose checks fail
+# does not start the tests. The release runs only after the checks and the tests of the same commit succeeded. No pull
+# request builds the image; the smoke test of the release is the gate, and when it fails nothing is pushed. Version tags
+# do not run this workflow (it restores caches, which a workflow that publishes must not do): release.yml starts for a
+# tag and checks that this workflow succeeded for the tagged commit.
+#
+# Where the jobs run: `vars.CI_RUNS_ON` names runner labels as a JSON array (for example
+# `["self-hosted","Linux","X64","my-label"]`). Runners chosen this way are trusted infrastructure of the deployment: they
+# may share a host and a Docker daemon with other workloads, and a job on them can reach what the runner user can reach.
+# Only this repository's own branches and its main branch run there, started by people who may write to the repository.
+# Pull requests from forks and from Dependabot, and a repository without the variable, use GitHub-hosted `ubuntu-latest`
+# (ENGINEERING_RULES R18). The expression is the same in every job. Cargo runs in a job container with limits on CPU,
+# memory and processes and a low CPU weight, so that a build cannot starve the other work of the host and leaves nothing
+# on it. That bounds resources; the container is not a security boundary.
+name: CI
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# A newer push to a pull request supersedes the run in progress.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
+  # Outside the workspace, so that no build output lands in the directory of the runner: the target directory lives and
+  # dies with the job container (rust-cache saves and restores it; `workspaces` below names the same place).
+  CARGO_TARGET_DIR: /ci-target
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checks:
+    name: checks
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: ". -> ../../../ci-target"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-deny,cargo-hack,cargo-machete,zizmor
+      # actionlint runs shellcheck on the scripts of the workflows when it finds it.
+      - name: Install actionlint and shellcheck
+        id: tools
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 --output "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar --extract --gzip --file "${RUNNER_TEMP}/${archive}" --directory /usr/local/bin actionlint
+          apt-get update --quiet
+          apt-get install --yes --quiet --no-install-recommends shellcheck
+      # Every check below runs even when an earlier one failed, so that one run shows everything that is wrong.
+      - name: fmt
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo fmt --all -- --check
+      - name: clippy (all features)
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - name: clippy (no default features)
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings
+      - name: fuzz targets still compile against the crates they exercise
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo check --manifest-path crates/ical/fuzz/Cargo.toml --locked
+      - name: DAV fuzz targets still compile against the crate they exercise
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo check --manifest-path crates/dav/fuzz/Cargo.toml --locked
+      - name: Each feature of the server
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo hack check -p davhaven-server --each-feature --locked
+      - name: rustdoc (warnings are errors)
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        env:
+          RUSTDOCFLAGS: -Dwarnings
+        run: cargo doc --workspace --no-deps --all-features --locked
+      - name: Layering rules, manifest hygiene and fuzz targets
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo xtask arch-check
+      # A dependency that no source of its crate names (the fuzz packages have their own manifests).
+      - name: Unused dependencies
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo machete --with-metadata . crates/ical/fuzz crates/dav/fuzz
+      # The images of the jobs are pinned by digest and Dependabot does not read them: the same image carries the same digest in
+      # every file, and the weekly workflow image-pins.yml compares the digests with the registries.
+      - name: Container image pins
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: |
+          bash scripts/image-pins.sh --self-test
+          bash scripts/image-pins.sh agree
+      - name: OpenAPI, MCP tool and event schemas
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo xtask contracts --check
+      - name: Permission matrix report
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo xtask matrix --check
+      - name: Configuration reference
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo xtask config-docs --check
+      - name: Problem catalog
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo xtask problems-docs --check
+      - name: Remaining unsupported() stubs (warning; release tags fail)
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo xtask unsupported
+      - name: Advisories, bans, licenses and sources
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo deny --all-features --locked check
+      - name: Advisories, bans, licenses and sources of the fuzz package (its own lock file)
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo deny --manifest-path crates/ical/fuzz/Cargo.toml --locked check
+      - name: Advisories, bans, licenses and sources of the DAV fuzz package (its own lock file)
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: cargo deny --manifest-path crates/dav/fuzz/Cargo.toml --locked check
+      - name: Lint workflows (actionlint)
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: actionlint -color
+      - name: Audit workflows and Dependabot configuration (zizmor)
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: zizmor --format=github .
+      # The container runs as root; whatever it wrote into the directories of the runner is handed back, or the next
+      # checkout of the runner user could not clean them.
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
+
+  test:
+    name: test
+    needs: [checks]
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
+    # The database is a sibling container in the network of the job: its host name is the name of the service, nothing is
+    # published on the host, and the data directory is in memory (no disk of the runner host is written; the databases
+    # of the tests are small).
+    services:
+      postgres:
+        image: postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+        env:
+          POSTGRES_USER: davhaven
+          POSTGRES_PASSWORD: davhaven
+          POSTGRES_DB: davhaven
+        options: >-
+          --cpus 2 --memory 3g --memory-swap 3g --cpu-shares 256 --oom-score-adj 500 --pids-limit 1024
+          --tmpfs /var/lib/postgresql:rw,size=2g
+          --health-cmd "pg_isready -U davhaven -d davhaven"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://davhaven:davhaven@postgres:5432/davhaven
+      # A non-UTC zone with an odd offset catches tests that depend on the host time zone (R9).
+      TZ: Pacific/Chatham
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: ". -> ../../../ci-target"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-nextest
+      # A test that hangs is killed after three minutes (.config/nextest.toml); the job timeout is the outer bound.
+      - name: Tests (nextest)
+        run: cargo nextest run --workspace --all-features --locked
+      - name: Doctests
+        run: cargo test --workspace --all-features --locked --doc
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
+
+  # Main only, after the tests: the instrumented build is the most expensive one, so it never runs for a pull request.
+  coverage:
+    name: coverage
+    needs: [test]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
+    services:
+      postgres:
+        image: postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+        env:
+          POSTGRES_USER: davhaven
+          POSTGRES_PASSWORD: davhaven
+          POSTGRES_DB: davhaven
+        options: >-
+          --cpus 2 --memory 3g --memory-swap 3g --cpu-shares 256 --oom-score-adj 500 --pids-limit 1024
+          --tmpfs /var/lib/postgresql:rw,size=2g
+          --health-cmd "pg_isready -U davhaven -d davhaven"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://davhaven:davhaven@postgres:5432/davhaven
+      # Instrumented tests are slower: the nightly profile of .config/nextest.toml kills a test after half an hour, not three minutes.
+      NEXTEST_PROFILE: nightly
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: ". -> ../../../ci-target"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
+      # Per-crate floors are ratcheted up as coverage grows; the summary goes to the job summary (no artifact upload).
+      - name: Coverage
+        run: |
+          cargo llvm-cov nextest --workspace --all-features --locked --summary-only | tee coverage.txt
+          {
+            echo "### Coverage"
+            echo '```'
+            cat coverage.txt
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
+
+  # Main, after the checks and the tests of the same commit: builds the image, smoke-tests it and only then pushes it
+  # (release.yml). It does not wait for the coverage.
+  release:
+    name: release
+    needs: [test]
+    if: ${{ github.event_name == 'push' }}
+    # What the called workflow may use: its gate job for tags reads check runs, its image job writes packages.
+    permissions:
+      checks: read
+      contents: read
+      packages: write
+    uses: ./.github/workflows/release.yml # zizmor: ignore[self-repository] actionlint does not accept the `$/` form
+    secrets:
+      DEPLOY_DISPATCH_TOKEN: ${{ secrets.DEPLOY_DISPATCH_TOKEN }}

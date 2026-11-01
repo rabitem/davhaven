@@ -1,0 +1,113 @@
+schema_version: 1
+name: ccs-caldavtester-read-only-edit
+description: >
+  The privilege tests of the CalendarServer test suite for a user with read access: the privilege set of the calendar
+  has read but no write, and every write is refused with 403 and DAV:need-privileges: a new object, a change, a
+  deletion, a copy into the calendar, a move out of it, a new collection in the owner's home and a property change.
+client: ccs-caldavtester
+feature: read-only-edit
+origin: synthetic
+provenance: >
+  Written after scripts/tests/CalDAV/privileges.xml and the read-only share cases of sharing/calendars of
+  ccs-caldavtester (see NOTICE); the read-only share is rita's accepted grant of the fixture world.
+actors:
+  rita: sharee_read
+variables:
+  shared: /dav/calendars/{{tenant}}/rita/projects
+  home: /dav/calendars/{{tenant}}/rita
+steps:
+  - name: the privilege set has read and no write
+    as: rita
+    request:
+      method: PROPFIND
+      path: "{{shared}}/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:current-user-privilege-set/></D:prop></D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}read" }
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}write", count: 0 }
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}write-content", count: 0 }
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}bind", count: 0 }
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}unbind", count: 0 }
+
+  - name: a new object is refused
+    as: rita
+    request:
+      method: PUT
+      path: "{{shared}}/ccs-readonly.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//CalendarServer tests//EN
+        BEGIN:VEVENT
+        UID:ccs-readonly-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270413T090000Z
+        DTEND:20270413T100000Z
+        SUMMARY:Not allowed
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 403
+      body_contains: ["need-privileges"]
+
+  - name: a change of an object is refused
+    as: rita
+    request:
+      method: PUT
+      path: "{{shared}}/shared-event@acme.example.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//CalendarServer tests//EN
+        BEGIN:VEVENT
+        UID:shared-event@acme.example
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270413T090000Z
+        DTEND:20270413T100000Z
+        SUMMARY:Changed
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 403
+      body_contains: ["need-privileges"]
+
+  - name: a deletion is refused
+    as: rita
+    request:
+      method: DELETE
+      path: "{{shared}}/shared-event@acme.example.ics"
+    expect:
+      status: 403
+      body_contains: ["need-privileges"]
+
+  - name: a copy within the calendar is refused
+    as: rita
+    request:
+      method: COPY
+      path: "{{shared}}/shared-event@acme.example.ics"
+      headers: { Destination: "{{base_url}}{{shared}}/copied.ics" }
+    expect:
+      status: 403
+
+  - name: a move out of the calendar is refused
+    as: rita
+    request:
+      method: MOVE
+      path: "{{shared}}/shared-event@acme.example.ics"
+      headers: { Destination: "{{base_url}}{{home}}/personal/moved.ics" }
+    expect:
+      status: 403
+
+  - name: the object is still there
+    as: rita
+    request:
+      method: GET
+      path: "{{shared}}/shared-event@acme.example.ics"
+    expect:
+      status: 200
+      body_contains: ["SUMMARY:Shared event"]

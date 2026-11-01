@@ -1,0 +1,1 @@
+{% if status == 429 %}Please wait{% elif status >= 500 %}Not available{% elif status == 404 or status == 410 %}Link not valid{% else %}Request refused{% endif %}

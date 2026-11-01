@@ -1,0 +1,41 @@
+[package]
+name = "davhaven-hooks-webhook"
+description = "Davhaven webhook outbox handler (Standard Webhooks) and log event sink."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-domain.workspace = true
+davhaven-ports.workspace = true
+davhaven-wire.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+futures.workspace = true
+hmac.workspace = true
+http.workspace = true
+humantime-serde.workspace = true
+schemars.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+davhaven-port-tests.workspace = true
+davhaven-ports = { workspace = true, features = ["testing"] }
+proptest.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "sync", "test-util", "time"] }
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

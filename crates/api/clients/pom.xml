@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Generates a Java client and a TypeScript client from docs/openapi.json with OpenAPI Generator and compiles the
+  Java one. It exists only to prove that the published document is usable by generators (PLAN 4.2); nothing
+  from here is published. Run it through smoke.sh.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>davhaven.smoke</groupId>
+  <artifactId>openapi-client-smoke</artifactId>
+  <version>0.0.0</version>
+  <packaging>jar</packaging>
+  <name>Davhaven OpenAPI client smoke</name>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
+    <openapi-generator.version>7.26.0</openapi-generator.version>
+    <jackson.version>2.22.4</jackson.version>
+    <!-- The document under test; smoke.sh passes the absolute path. -->
+    <openapi.spec>${project.basedir}/../../../docs/openapi.json</openapi.spec>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <!-- What the generated native (java.net.http) client needs. -->
+  <dependencies>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jsr310</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.openapitools</groupId>
+      <artifactId>jackson-databind-nullable</artifactId>
+      <version>0.2.13</version>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.annotation</groupId>
+      <artifactId>jakarta.annotation-api</artifactId>
+      <version>3.0.0</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Pinned, like everything else here: the default of the Maven release decides which `release` settings it understands. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.16.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.openapitools</groupId>
+        <artifactId>openapi-generator-maven-plugin</artifactId>
+        <version>${openapi-generator.version}</version>
+        <executions>
+          <execution>
+            <id>java</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <configuration>
+              <inputSpec>${openapi.spec}</inputSpec>
+              <generatorName>java</generatorName>
+              <library>native</library>
+              <output>${project.build.directory}/generated/java</output>
+              <apiPackage>davhaven.client.api</apiPackage>
+              <modelPackage>davhaven.client.model</modelPackage>
+              <invokerPackage>davhaven.client</invokerPackage>
+              <generateApiTests>false</generateApiTests>
+              <generateModelTests>false</generateModelTests>
+              <generateApiDocumentation>false</generateApiDocumentation>
+              <generateModelDocumentation>false</generateModelDocumentation>
+              <addCompileSourceRoot>true</addCompileSourceRoot>
+              <configOptions>
+                <useJakartaEe>true</useJakartaEe>
+                <dateLibrary>java8</dateLibrary>
+                <hideGenerationTimestamp>true</hideGenerationTimestamp>
+                <serializationLibrary>jackson</serializationLibrary>
+                <!--
+                  The two settings the API's compatibility policy asks of a Java client (docs/api.md): a value of an
+                  enumeration that the client does not know reads as UNKNOWN_DEFAULT_OPEN_API instead of throwing,
+                  and the tagged union (the trigger of an alarm) is resolved by its discriminator, because with the
+                  first setting alone every alternative would match the tag.
+                -->
+                <enumUnknownDefaultCase>true</enumUnknownDefaultCase>
+                <useOneOfDiscriminatorLookup>true</useOneOfDiscriminatorLookup>
+                <!--
+                  Keep this on (it is the default): a nullable member is a JsonNullable, which tells an explicit null
+                  (remove the field) from an absent member (keep it). Without it a client cannot send the null that
+                  removes a field (docs/api.md, "Writing events").
+                -->
+                <openApiNullable>true</openApiNullable>
+              </configOptions>
+            </configuration>
+          </execution>
+          <execution>
+            <id>typescript</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <configuration>
+              <inputSpec>${openapi.spec}</inputSpec>
+              <generatorName>typescript-fetch</generatorName>
+              <output>${project.build.directory}/generated/typescript</output>
+              <generateApiTests>false</generateApiTests>
+              <generateModelTests>false</generateModelTests>
+              <addCompileSourceRoot>false</addCompileSourceRoot>
+              <configOptions>
+                <supportsES6>true</supportsES6>
+                <typescriptThreePlus>true</typescriptThreePlus>
+                <withInterfaces>true</withInterfaces>
+              </configOptions>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

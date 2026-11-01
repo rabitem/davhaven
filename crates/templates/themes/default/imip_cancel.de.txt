@@ -1,0 +1,10 @@
+{{ organizer.name }} hat diesen Termin abgesagt.
+
+{{ event.summary }}
+Geplant war: {{ when(event.start, event.end) }}
+{% if event.location %}Wo: {{ event.location }}
+{% endif %}Organisator: {{ organizer.name }}
+
+Ihre Kalender-App entfernt den Termin, wenn Sie die angehängte Absage (invite.ics) öffnen.
+
+{% include "_footer." ~ locale ~ ".txt" %}

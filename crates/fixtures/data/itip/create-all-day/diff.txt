@@ -1,0 +1,5 @@
+master: created [-]
+added attendees: mailto:bob@example.org, mailto:cleo@example.org
+removed attendees: -
+cancelled instances: -
+needs sequence bump: false

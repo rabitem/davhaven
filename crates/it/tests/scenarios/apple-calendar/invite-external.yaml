@@ -1,0 +1,58 @@
+schema_version: 1
+name: apple-calendar-invite-external
+description: >
+  Calendar on macOS invites a guest outside the tenant: the write succeeds, the organizer's copy records that the
+  invitation was queued or mailed (iMIP) and nothing is written for the guest here.
+client: apple-calendar
+feature: invite-external
+origin: synthetic
+provenance: >
+  The organizer's object as Calendar on macOS writes a meeting with an attendee whose address belongs to no
+  principal; no capture of a deployed instance yet. Mail itself is covered by the scheduling matrix.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the organizer writes a meeting with a guest
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/apple-external-1.ics"
+      headers: { If-None-Match: "*" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//macOS 15.0//EN
+        BEGIN:VEVENT
+        UID:apple-external-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270318T090000Z
+        DTEND:20270318T100000Z
+        SUMMARY:Customer call
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=A Guest;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:guest@example.net
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the organizer's copy records what happened to the invitation
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/apple-external-1.ics"
+    expect:
+      status: 200
+      ical_contains: ["SCHEDULE-STATUS=1.", ":mailto:guest@example.net"]
+      ical_excludes: ["SCHEDULE-STATUS=5."]
+
+  - name: the meeting is cancelled by deleting it
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/apple-external-1.ics"
+    expect:
+      status: 204

@@ -1,0 +1,132 @@
+schema_version: 1
+name: evolution-accept
+description: >
+  A colleague accepts an invitation in Evolution: the client finds the copy, writes it back with PARTSTAT=ACCEPTED
+  with the entity tag it read (If-Match), the write is answered without a conflict and the organizer's copy shows the
+  answer. A second write with the old entity tag is refused.
+client: evolution
+feature: accept
+origin: synthetic
+provenance: >
+  The attendee's write as Evolution makes it when the user answers (whole object, changed PARTSTAT, PRODID
+  -//Ximian//NONSGML Evolution Calendar//EN); the organizer's write is the one of evolution-invite-internal.
+actors:
+  olivia: owner
+  otto: other_user
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the organizer invites the colleague
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/evo-accept.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar", User-Agent: "Evolution/3.52.4" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Ximian//NONSGML Evolution Calendar//EN
+        BEGIN:VEVENT
+        UID:evo-accept-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270314T090000Z
+        DTEND:20270314T100000Z
+        SUMMARY:Abstimmung
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=Otto Other:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the colleague's calendar lists the meeting for its month
+    as: otto
+    request:
+      method: REPORT
+      path: /dav/calendars/{{tenant}}/otto/personal/
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8", User-Agent: "Evolution/3.52.4" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270301T000000Z" end="20270401T000000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    capture:
+      copy: { xpath: "/{DAV:}multistatus/{DAV:}response/{DAV:}href" }
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 1 }
+
+  - name: the client reads the copy and keeps its tags
+    as: otto
+    request:
+      method: GET
+      path: "{{copy}}"
+    capture:
+      etag: { header: ETag }
+      tag: { header: Schedule-Tag }
+    expect:
+      status: 200
+      headers:
+        schedule-tag: {}
+        etag: {}
+      ical_contains: ["PARTSTAT=NEEDS-ACTION"]
+
+  - name: the colleague accepts
+    as: otto
+    request:
+      method: PUT
+      path: "{{copy}}"
+      headers: { If-Match: "{{etag}}", Content-Type: "text/calendar", User-Agent: "Evolution/3.52.4" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Ximian//NONSGML Evolution Calendar//EN
+        BEGIN:VEVENT
+        UID:evo-accept-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270314T090000Z
+        DTEND:20270314T100000Z
+        SUMMARY:Abstimmung
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;RSVP=TRUE;CN=Otto Other:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the organizer's copy shows the answer
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/evo-accept.ics"
+    expect:
+      status: 200
+      ical_contains: ["PARTSTAT=ACCEPTED", "mailto:otto@{{login_domain}}"]
+      ical_excludes: ["PARTSTAT=NEEDS-ACTION"]
+
+  - name: a write with the entity tag from before the answer is refused
+    as: otto
+    request:
+      method: PUT
+      path: "{{copy}}"
+      headers: { If-Match: "{{etag}}", Content-Type: "text/calendar", User-Agent: "Evolution/3.52.4" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Ximian//NONSGML Evolution Calendar//EN
+        BEGIN:VEVENT
+        UID:evo-accept-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270314T090000Z
+        DTEND:20270314T100000Z
+        SUMMARY:Abstimmung
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;RSVP=TRUE;CN=Otto Other:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 412

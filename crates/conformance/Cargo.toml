@@ -1,0 +1,28 @@
+[package]
+name = "davhaven-conformance"
+description = "Davhaven black-box conformance runner (matrices and client flows over HTTP)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "davhaven-conformance"
+path = "src/main.rs"
+
+[dependencies]
+davhaven-testkit.workspace = true
+async-trait.workspace = true
+clap.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros", "process", "rt-multi-thread", "time"] }
+url.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

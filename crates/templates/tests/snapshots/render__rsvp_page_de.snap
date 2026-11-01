@@ -1,0 +1,49 @@
+---
+source: crates/templates/tests/render.rs
+expression: show(&output)
+---
+subject: Planning <session> & coffee
+
+--- html ---
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Planning &lt;session&gt; &amp; coffee</title>
+<link rel="stylesheet" href="/assets/default/page.css">
+</head>
+<body>
+<main>
+<div class="card">
+
+<h1>Planning &lt;session&gt; &amp; coffee</h1>
+<dl>
+<dt>Wann</dt>
+<dd>Dienstag, 12. Januar 2027, 10:00–11:30 Uhr (Europe/Berlin)</dd>
+<dt>Wo</dt>
+<dd>Room 4, Main Street 1</dd>
+<dt>Organisator</dt>
+<dd>Anna Example</dd>
+</dl>
+<form method="post" action="/rsvp/dvh_rsvp_token">
+<input type="hidden" name="csrf" value="csrf-token">
+<label for="comment">Kommentar für den Organisator (optional)</label>
+<textarea id="comment" name="comment" rows="3" maxlength="500"></textarea>
+<div class="actions" role="group" aria-label="Ihre Antwort">
+<button type="submit" name="partstat" value="ACCEPTED" class="primary">Zusagen</button>
+<button type="submit" name="partstat" value="TENTATIVE">Vielleicht</button>
+<button type="submit" name="partstat" value="DECLINED">Absagen</button>
+</div>
+</form>
+
+</div>
+</main>
+<footer>
+<p>Gesendet von Example Organisation.</p>
+</footer>
+</body>
+</html>
+--- text ---

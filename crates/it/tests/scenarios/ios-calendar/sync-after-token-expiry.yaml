@@ -1,0 +1,206 @@
+schema_version: 1
+name: ios-calendar-sync-collection
+description: >
+  Calendar on iOS synchronizes with sync-collection: the first report returns every event and a token, the next one the
+  new event, the changed one and the deletion (as 404), and a token the server does not know (the client was away for
+  longer than the server keeps its history, or it is garbage) is refused with 403 and DAV:valid-sync-token, after which
+  the client asks without a token and gets everything again.
+client: ios-calendar
+feature: sync-after-token-expiry
+origin: synthetic
+provenance: >
+  The report of Calendar on iOS (sync-collection with getetag, sync-level 1) and the refusal of RFC 6578 section 3.2;
+  the token form is the one of PLAN 2.7.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/ios-sync
+steps:
+  - name: a calendar is created for the scenario
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body_file: dav/macos-mkcalendar.xml
+    expect:
+      status: 201
+
+  - name: two events exist before the first sync
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/a.ics"
+      headers: { If-None-Match: "*", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//iOS 18.0//EN
+        BEGIN:VEVENT
+        UID:ios-sync-a@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270330T090000Z
+        DTEND:20270330T100000Z
+        SUMMARY:A
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the second event
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/b.ics"
+      headers: { If-None-Match: "*", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//iOS 18.0//EN
+        BEGIN:VEVENT
+        UID:ios-sync-b@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270331T090000Z
+        DTEND:20270331T100000Z
+        SUMMARY:B
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the first sync returns both and a token
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:sync-collection xmlns:A="DAV:">
+          <A:sync-token/>
+          <A:sync-level>1</A:sync-level>
+          <A:prop><A:getetag/></A:prop>
+        </A:sync-collection>
+    capture:
+      token: { xpath: "/{DAV:}multistatus/{DAV:}sync-token" }
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/a.ics": 200
+        "{{cal}}/b.ics": 200
+
+  - name: a third event is added, the first is changed and the second is deleted
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/c.ics"
+      headers: { If-None-Match: "*", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//iOS 18.0//EN
+        BEGIN:VEVENT
+        UID:ios-sync-c@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270401T090000Z
+        DTEND:20270401T100000Z
+        SUMMARY:C
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the first event is changed
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/a.ics"
+      headers: { User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//iOS 18.0//EN
+        BEGIN:VEVENT
+        UID:ios-sync-a@example.org
+        DTSTAMP:20270102T000000Z
+        DTSTART:20270330T100000Z
+        DTEND:20270330T110000Z
+        SUMMARY:A (later)
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the second is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/b.ics"
+    expect:
+      status: 204
+
+  - name: the next sync returns the three changes
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:sync-collection xmlns:A="DAV:">
+          <A:sync-token>{{token}}</A:sync-token>
+          <A:sync-level>1</A:sync-level>
+          <A:prop><A:getetag/></A:prop>
+        </A:sync-collection>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/a.ics": 200
+        "{{cal}}/b.ics": 404
+        "{{cal}}/c.ics": 200
+
+  - name: a token the server does not know is refused
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:sync-collection xmlns:A="DAV:">
+          <A:sync-token>http://example.org/old-server/sync/42</A:sync-token>
+          <A:sync-level>1</A:sync-level>
+          <A:prop><A:getetag/></A:prop>
+        </A:sync-collection>
+    expect:
+      status: 403
+      body_contains: ["valid-sync-token"]
+
+  - name: without a token the client gets everything again
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:sync-collection xmlns:A="DAV:">
+          <A:sync-token/>
+          <A:sync-level>1</A:sync-level>
+          <A:prop><A:getetag/></A:prop>
+        </A:sync-collection>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/a.ics": 200
+        "{{cal}}/c.ics": 200
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 2 }
+
+  - name: the calendar is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/"
+    expect:
+      status: 204

@@ -1,0 +1,16 @@
+{% extends "_page.html" %}
+{% block title %}Thank you for your answer{% endblock %}
+{% block content %}
+<h1>Thank you for your answer</h1>
+<p class="notice" role="status">Your answer has been sent to {{ organizer.name }}: <strong>{% if answer == "ACCEPTED" %}Accepted{% elif answer == "DECLINED" %}Declined{% elif answer == "TENTATIVE" %}Maybe{% else %}Recorded{% endif %}</strong>.</p>
+<dl>
+<dt>Event</dt>
+<dd>{{ event.summary }}</dd>
+<dt>When</dt>
+<dd>{{ when(event.start, event.end) }}</dd>
+{% if event.location %}<dt>Where</dt>
+<dd>{{ event.location }}</dd>
+{% endif %}</dl>
+<p>You can change your answer at any time with the same link.</p>
+<p><a class="button" href="{{ link }}">Change my answer</a></p>
+{% endblock %}

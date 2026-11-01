@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<A:propertyupdate xmlns:A="DAV:">
+  <A:set>
+    <A:prop>
+      <D:calendar-color xmlns:D="http://apple.com/ns/ical/" symbolic-color="custom">#44A703FF</D:calendar-color>
+      <A:displayname>Team work</A:displayname>
+      <D:calendar-enabled xmlns:D="http://apple.com/ns/ical/">0</D:calendar-enabled>
+    </A:prop>
+  </A:set>
+  <A:remove>
+    <A:prop>
+      <D:calendar-order xmlns:D="http://apple.com/ns/ical/"/>
+    </A:prop>
+  </A:remove>
+</A:propertyupdate>

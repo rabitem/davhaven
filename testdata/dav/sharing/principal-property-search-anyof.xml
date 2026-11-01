@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<A:principal-property-search xmlns:A="DAV:" xmlns:B="urn:ietf:params:xml:ns:caldav" xmlns:C="http://calendarserver.org/ns/" test="anyof">
+  <A:property-search>
+    <A:prop>
+      <A:displayname/>
+    </A:prop>
+    <A:match match-type="contains">baker</A:match>
+  </A:property-search>
+  <A:property-search>
+    <A:prop>
+      <C:email-address-set/>
+    </A:prop>
+    <A:match match-type="starts-with">cara@</A:match>
+  </A:property-search>
+  <A:prop>
+    <A:displayname/>
+    <B:calendar-user-address-set/>
+    <A:principal-URL/>
+  </A:prop>
+</A:principal-property-search>

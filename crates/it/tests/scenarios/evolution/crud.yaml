@@ -1,0 +1,70 @@
+schema_version: 1
+name: evolution-crud
+description: >
+  Evolution stores an event whose time zone is the registry form of libical
+  (/freeassociation.sourceforge.net/Tzfile/Europe/Berlin) with X-EVOLUTION properties in the event and the alarm, reads it
+  back with the same entity tag, and deletes it.
+client: evolution
+feature: crud
+origin: synthetic
+provenance: >
+  Body is testdata/corpus/evolution-event-registry-tzid.ics, a reconstruction of what Evolution writes (see
+  testdata/corpus/README.md).
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the event is stored
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/evo-event.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar" }
+      body_file: corpus/evolution-event-registry-tzid.ics
+    capture:
+      etag: { header: ETag }
+    expect:
+      status: 201
+
+  - name: the event comes back with its time zone and Evolution's properties
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/evo-event.ics"
+    expect:
+      status: 200
+      headers:
+        etag: "{{etag}}"
+      ical_contains:
+        - "DTSTART;TZID=/freeassociation.sourceforge.net/Tzfile/Europe/Berlin:20270308T090000"
+        - "X-EVOLUTION-ALARM-UID:20270120T081600Z-4242-1000-1-9@workstation"
+        - "X-LIC-LOCATION:Europe/Berlin"
+
+  - name: the event is found for its day in Berlin
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270308T000000Z" end="20270309T000000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/evo-event.ics": 200
+
+  - name: the event is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/evo-event.ics"
+      headers: { If-Match: "{{etag}}" }
+    expect:
+      status: 204

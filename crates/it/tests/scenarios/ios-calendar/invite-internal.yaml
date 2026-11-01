@@ -1,0 +1,69 @@
+schema_version: 1
+name: ios-calendar-invite-internal
+description: >
+  Calendar on iOS invites a colleague with attendee lines in its style (CUTYPE, EMAIL, ROLE, RSVP and PARTSTAT
+  parameters): the write is accepted, the colleague receives the invitation in the scheduling inbox and as a copy.
+client: ios-calendar
+feature: invite-internal
+origin: synthetic
+provenance: >
+  Attendee and organizer lines in the form of testdata/corpus/apple-ios-invite-accepted.ics (Calendar on iOS 17),
+  with the colleague of the fixture world as the attendee; no capture of a deployed instance yet.
+actors:
+  olivia: owner
+  otto: other_user
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the organizer invites a colleague
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ios-invite-internal.ics"
+      headers: { If-None-Match: "*" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//iOS 18.0//EN
+        CALSCALE:GREGORIAN
+        BEGIN:VEVENT
+        ATTENDEE;CN=Otto Other;CUTYPE=INDIVIDUAL;EMAIL=otto@{{login_domain}};PARTSTAT=NEEDS-ACTION;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:otto@{{login_domain}}
+        CREATED:20270210T090000Z
+        DTEND:20270322T100000Z
+        DTSTAMP:20270211T101500Z
+        DTSTART:20270322T090000Z
+        LAST-MODIFIED:20270211T101500Z
+        ORGANIZER;CN=Olivia Owner;EMAIL=olivia@{{login_domain}}:mailto:olivia@{{login_domain}}
+        SEQUENCE:0
+        SUMMARY:Abstimmung
+        TRANSP:OPAQUE
+        UID:ios-invite-internal-1@example.org
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the colleague is told in the scheduling inbox
+    as: otto
+    request:
+      method: PROPFIND
+      path: /dav/calendars/{{tenant}}/otto/inbox/
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:propfind xmlns:A="DAV:"><A:prop><A:getetag/></A:prop></A:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 2 }
+
+  - name: the organizer's copy says that the invitation was delivered
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/ios-invite-internal.ics"
+    expect:
+      status: 200
+      ical_contains: ["SCHEDULE-STATUS=1.2"]

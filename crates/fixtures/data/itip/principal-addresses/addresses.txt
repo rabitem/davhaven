@@ -1,0 +1,2 @@
+urn:uuid:5a9c1e0e-2d6b-4c53-9a45-0c0a1f3b7a01 => mailto:anna@example.org
+/dav/principals/example/bob/ => mailto:bob@example.org

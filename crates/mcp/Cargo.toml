@@ -1,0 +1,39 @@
+[package]
+name = "davhaven-mcp"
+description = "Davhaven Model Context Protocol server (streamable HTTP)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-app.workspace = true
+davhaven-domain.workspace = true
+davhaven-http.workspace = true
+davhaven-wire.workspace = true
+axum.workspace = true
+chrono.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+rmcp.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
+
+[dev-dependencies]
+davhaven-app-fake.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+futures.workspace = true
+insta.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
+tower.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,31 @@
+# Clippy configuration (ENGINEERING_RULES R9, R17). Lint levels live in `[workspace.lints]` of Cargo.toml.
+
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+
+# Determinism (R9): time and randomness only through the `Clock` and `IdGenerator` ports. The production
+# implementations in `davhaven-ports` opt out with `#[expect(clippy::disallowed_methods, reason = "...")]`.
+disallowed-methods = [
+  { path = "chrono::Utc::now", reason = "use the Clock port (R9)" },
+  { path = "chrono::Local::now", reason = "use the Clock port (R9)" },
+  { path = "std::time::SystemTime::now", reason = "use the Clock port (R9)" },
+  { path = "uuid::Uuid::new_v4", reason = "use the IdGenerator port (R9)", allow-invalid = true },
+  { path = "uuid::Uuid::now_v7", reason = "use the IdGenerator port (R9)", allow-invalid = true },
+  { path = "rand::thread_rng", reason = "use the IdGenerator port (R9)", allow-invalid = true },
+  { path = "rand::rng", reason = "use the IdGenerator port (R9)", allow-invalid = true },
+  { path = "rand::random", reason = "use the IdGenerator port (R9)", allow-invalid = true },
+]
+
+# Blocking mutexes stall the async runtime; use `tokio::sync::Mutex` or message passing. Synchronous code that
+# needs one documents it with `#[expect(clippy::disallowed_types, reason = "...")]` (R17).
+disallowed-types = [
+  { path = "std::sync::Mutex", reason = "blocking mutex in async code; use tokio::sync::Mutex (R17)" },
+]
+
+# Protocol and product names that are not code.
+doc-valid-idents = [
+  "CalDAV", "CardDAV", "WebDAV", "iCalendar", "iTIP", "iMIP", "iCal", "vCard", "JSCalendar", "CalendarServer",
+  "PostgreSQL", "OpenAPI", "DAVx5", "XChaCha20", "ChaCha20", "MiniJinja", "UUIDv7", "ETag", "ETags", "..",
+]

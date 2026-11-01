@@ -1,0 +1,3 @@
+# Migrations of released versions: `<version> <sha384 of the file as embedded>`, one per line.
+# A line is added when a release is cut and is never edited or removed (ENGINEERING_RULES R16): a released
+# migration is forward-only history. Unreleased migrations are not listed and may still change.

@@ -1,0 +1,12 @@
+{% extends "_mail.html" %}
+{% block title %}{{ event.summary }}{% endblock %}
+{% block content %}
+<p style="margin:0 0 16px 0;"><strong>{{ organizer.name }}</strong> hat diesen Termin abgesagt.</p>
+<h1 style="font-size:20px;line-height:1.3;margin:0 0 12px 0;text-decoration:line-through;">{{ event.summary }}</h1>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px 0;">
+<tr><th scope="row" align="left" valign="top" style="padding:2px 16px 2px 0;font-weight:bold;">Geplant war</th><td style="padding:2px 0;">{{ when(event.start, event.end) }}</td></tr>
+{% if event.location %}<tr><th scope="row" align="left" valign="top" style="padding:2px 16px 2px 0;font-weight:bold;">Wo</th><td style="padding:2px 0;">{{ event.location }}</td></tr>
+{% endif %}<tr><th scope="row" align="left" valign="top" style="padding:2px 16px 2px 0;font-weight:bold;">Organisator</th><td style="padding:2px 0;">{{ organizer.name }}</td></tr>
+</table>
+<p style="margin:0 0 16px 0;font-size:13px;color:#52606d;">Ihre Kalender-App entfernt den Termin, wenn Sie die angehängte Absage (invite.ics) öffnen.</p>
+{% endblock %}

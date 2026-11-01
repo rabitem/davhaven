@@ -1,0 +1,5 @@
+master: significant [EXDATE]
+added attendees: -
+removed attendees: -
+cancelled instances: Europe/Berlin 2027-03-08T10:00:00
+needs sequence bump: true

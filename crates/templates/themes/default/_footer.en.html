@@ -1,0 +1,4 @@
+<p style="margin:0;">Sent by {{ tenant.name }}.</p>
+{% if reply_to %}<p style="margin:8px 0 0 0;">Replies to this message go to {{ reply_to }}.</p>
+{% else %}<p style="margin:8px 0 0 0;">Please do not reply to this message, it was sent automatically.</p>
+{% endif %}

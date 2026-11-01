@@ -1,0 +1,10 @@
+{% extends "_page.html" %}
+{% block title %}{% if success %}Calendar connected{% else %}Connection failed{% endif %}{% endblock %}
+{% block content %}
+{% if success %}<h1>Calendar connected</h1>
+<p class="notice" role="status">Your {{ provider }} calendar is connected. Its events appear in your calendar app after the next synchronization.</p>
+<p>You can close this window.</p>
+{% else %}<h1>Connection failed</h1>
+<p class="notice error" role="alert">Your {{ provider }} calendar could not be connected. The authorization was not completed or has expired.</p>
+<p>Please close this window and start the connection again.</p>
+{% endif %}{% endblock %}

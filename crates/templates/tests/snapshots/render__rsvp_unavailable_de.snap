@@ -1,0 +1,30 @@
+---
+source: crates/templates/tests/render.rs
+expression: show(&output)
+---
+subject: Link nicht gültig
+
+--- html ---
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Link nicht gültig</title>
+<link rel="stylesheet" href="/assets/default/page.css">
+</head>
+<body>
+<main>
+<div class="card">
+
+<h1>Dieser Link ist nicht gültig</h1>
+<p>Der Link ist unbekannt, abgelaufen oder wurde zurückgezogen, zum Beispiel weil der Termin abgesagt oder gelöscht wurde oder weil ein Abonnement-Link ersetzt wurde.</p>
+<p>Wenn Sie auf eine Einladung antworten möchten, bitten Sie den Organisator, Sie erneut einzuladen.</p>
+
+</div>
+</main>
+</body>
+</html>
+--- text ---

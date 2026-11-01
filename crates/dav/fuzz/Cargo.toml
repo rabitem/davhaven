@@ -1,0 +1,36 @@
+# Fuzz targets of the DAV layer (PLAN L8). The package is deliberately outside the workspace: it needs a nightly
+# toolchain and the libFuzzer runtime, which the regular build and the lock file of the workspace must not see. CI
+# keeps it honest: `cargo check` and `cargo deny` run on this manifest and its own lock file, Dependabot updates it,
+# and the nightly workflow runs every target. Run a target with `cargo +nightly fuzz run <target>` from `crates/dav`;
+# `testdata/dav` holds the request bodies of real clients to start from.
+[package]
+name = "davhaven-dav-fuzz"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+davhaven-dav = { path = ".." }
+davhaven-domain = { path = "../../domain" }
+libfuzzer-sys = "=0.4.13"
+
+[workspace]
+
+[[bin]]
+name = "xml_reader"
+path = "fuzz_targets/xml_reader.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "collaboration_xml"
+path = "fuzz_targets/collaboration_xml.rs"
+test = false
+doc = false
+bench = false

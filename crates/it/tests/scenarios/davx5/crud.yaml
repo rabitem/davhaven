@@ -1,0 +1,80 @@
+schema_version: 1
+name: davx5-crud
+description: >
+  DAVx5 uploads an event that it created in the calendar app (UTC times, a weekly rule with two weekdays, an
+  excluded date, an alarm), downloads it again after another device changed it, and deletes it.
+client: davx5
+feature: crud
+origin: synthetic
+provenance: >
+  Body is testdata/corpus/davx5-event-utc.ics, a reconstruction of what DAVx5 (ical4j) writes (see
+  testdata/corpus/README.md). DAVx5 uploads with If-None-Match: * and changes with If-Match.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the event is uploaded
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/davx5-run.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/davx5-event-utc.ics
+    capture:
+      etag: { header: ETag }
+    expect:
+      status: 201
+
+  - name: another device changes the event, which DAVx5 sees by its entity tag
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/davx5-run.ics"
+      headers: { Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Other device//EN
+        BEGIN:VEVENT
+        UID:5f1e2b9c-7d3a-4c56-8e90-1a2b3c4d5e6f
+        DTSTAMP:20270113T100000Z
+        SEQUENCE:1
+        SUMMARY:Lauftreff (neuer Treffpunkt)
+        DTSTART:20270303T170000Z
+        DTEND:20270303T180000Z
+        RRULE:FREQ=WEEKLY;WKST=MO;BYDAY=WE,SA
+        END:VEVENT
+        END:VCALENDAR
+    capture:
+      etag2: { header: ETag }
+    expect:
+      status: [200, 204]
+
+  - name: the multiget for the changed resource returns the new data
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <calendar-multiget xmlns="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/><calendar-data/></D:prop>
+          <D:href>{{cal}}/davx5-run.ics</D:href>
+        </calendar-multiget>
+    expect:
+      status: 207
+      properties:
+        - { href: "{{cal}}/davx5-run.ics", name: "{DAV:}getetag", value: "{{etag2}}" }
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "Lauftreff (neuer Treffpunkt)" }
+
+  - name: the event is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/davx5-run.ics"
+      headers: { If-Match: "{{etag2}}" }
+    expect:
+      status: 204

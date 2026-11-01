@@ -1,0 +1,11 @@
+{% set who = attendee.name or attendee.email %}{% if reply.partstat == "ACCEPTED" %}{{ who }} has accepted your invitation.{% elif reply.partstat == "DECLINED" %}{{ who }} has declined your invitation.{% elif reply.partstat == "TENTATIVE" %}{{ who }} has tentatively accepted your invitation.{% else %}{{ who }} has replied to your invitation.{% endif %}
+
+{{ event.summary }}
+When: {{ when(event.start, event.end) }}
+{% if event.location %}Where: {{ event.location }}
+{% endif %}{% if reply.comment %}
+Comment: {{ reply.comment }}
+{% endif %}
+Your calendar application updates the answer of this attendee when you open the attached reply (invite.ics).
+
+{% include "_footer." ~ locale ~ ".txt" %}

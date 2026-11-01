@@ -1,0 +1,42 @@
+---
+source: crates/templates/tests/render.rs
+expression: show(&output)
+---
+subject: Vielen Dank für Ihre Antwort
+
+--- html ---
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Vielen Dank für Ihre Antwort</title>
+<link rel="stylesheet" href="/assets/default/page.css">
+</head>
+<body>
+<main>
+<div class="card">
+
+<h1>Vielen Dank für Ihre Antwort</h1>
+<p class="notice" role="status">Ihre Antwort wurde an Anna Example gesendet: <strong>Zugesagt</strong>.</p>
+<dl>
+<dt>Termin</dt>
+<dd>Planning &lt;session&gt; &amp; coffee</dd>
+<dt>Wann</dt>
+<dd>Dienstag, 12. Januar 2027, 10:00–11:30 Uhr (Europe/Berlin)</dd>
+<dt>Wo</dt>
+<dd>Room 4, Main Street 1</dd>
+</dl>
+<p>Sie können Ihre Antwort jederzeit über denselben Link ändern.</p>
+<p><a class="button" href="/rsvp/dvh_rsvp_token">Meine Antwort ändern</a></p>
+
+</div>
+</main>
+<footer>
+<p>Gesendet von Example Organisation.</p>
+</footer>
+</body>
+</html>
+--- text ---

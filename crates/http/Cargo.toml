@@ -1,0 +1,40 @@
+[package]
+name = "davhaven-http"
+description = "Davhaven HTTP edge: shared tower layers for all protocol routers."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-app.workspace = true
+davhaven-domain.workspace = true
+davhaven-wire.workspace = true
+axum.workspace = true
+base64.workspace = true
+http-body-util.workspace = true
+humantime-serde.workspace = true
+ipnet.workspace = true
+metrics.workspace = true
+percent-encoding.workspace = true
+schemars.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
+tower.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+davhaven-app-fake.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "test-util"] }
+tower.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,60 @@
+schema_version: 1
+name: ios-calendar-accept-invitation-from-mail
+description: >
+  A user accepts an invitation that arrived by mail from somebody outside the tenant: Calendar on iOS saves the event
+  with the organizer's address and the answers as they are. The server stores it as an event of the user (neither the
+  organizer nor an attendee of the user's address is in it, so nothing is scheduled) and returns the bytes unchanged.
+client: ios-calendar
+feature: accept
+origin: synthetic
+provenance: >
+  Body is testdata/corpus/apple-ios-invite-accepted.ics, a reconstruction of what Calendar on iOS 17 writes after an
+  accepted iMIP invitation (see testdata/corpus/README.md).
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the accepted invitation is stored
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ios-invite.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/apple-ios-invite-accepted.ics
+    capture:
+      etag: { header: ETag }
+    expect:
+      status: 201
+
+  - name: the event comes back with the organizer and the answers
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/ios-invite.ics"
+    expect:
+      status: 200
+      headers:
+        etag: "{{etag}}"
+      ical_contains:
+        - "ORGANIZER;CN=Anna Beispiel;EMAIL=anna@example.org:mailto:anna@example.org"
+        - "PARTSTAT=ACCEPTED;ROLE=REQ-PARTICIPANT;SCHEDULE-STATUS=2.0:mailto:bob@example.org"
+        - "SUMMARY:Planungsgespräch"
+
+  - name: the user changes the alarm and writes the event again
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ios-invite.ics"
+      headers: { If-Match: "{{etag}}", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/apple-ios-invite-accepted.ics
+    expect:
+      status: [200, 204]
+
+  - name: the event is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/ios-invite.ics"
+    expect:
+      status: 204

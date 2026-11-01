@@ -1,0 +1,18 @@
+{% extends "_mail.html" %}
+{% block title %}{{ event.summary }}{% endblock %}
+{% block content %}
+{% set who = attendee.name or attendee.email %}
+<p style="margin:0 0 16px 0;"><strong>{{ who }}</strong>
+{%- if reply.partstat == "ACCEPTED" %} hat Ihre Einladung angenommen.
+{%- elif reply.partstat == "DECLINED" %} hat Ihre Einladung abgelehnt.
+{%- elif reply.partstat == "TENTATIVE" %} hat Ihre Einladung vorläufig angenommen.
+{%- else %} hat auf Ihre Einladung geantwortet.
+{%- endif %}</p>
+<h1 style="font-size:20px;line-height:1.3;margin:0 0 12px 0;">{{ event.summary }}</h1>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px 0;">
+<tr><th scope="row" align="left" valign="top" style="padding:2px 16px 2px 0;font-weight:bold;">Wann</th><td style="padding:2px 0;">{{ when(event.start, event.end) }}</td></tr>
+{% if event.location %}<tr><th scope="row" align="left" valign="top" style="padding:2px 16px 2px 0;font-weight:bold;">Wo</th><td style="padding:2px 0;">{{ event.location }}</td></tr>
+{% endif %}{% if reply.comment %}<tr><th scope="row" align="left" valign="top" style="padding:2px 16px 2px 0;font-weight:bold;">Kommentar</th><td style="padding:2px 0;">{{ reply.comment | multiline }}</td></tr>
+{% endif %}</table>
+<p style="margin:0 0 16px 0;font-size:13px;color:#52606d;">Ihre Kalender-App aktualisiert die Antwort dieses Teilnehmers, wenn Sie die angehängte Antwort (invite.ics) öffnen.</p>
+{% endblock %}

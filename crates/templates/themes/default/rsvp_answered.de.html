@@ -1,0 +1,16 @@
+{% extends "_page.html" %}
+{% block title %}Vielen Dank für Ihre Antwort{% endblock %}
+{% block content %}
+<h1>Vielen Dank für Ihre Antwort</h1>
+<p class="notice" role="status">Ihre Antwort wurde an {{ organizer.name }} gesendet: <strong>{% if answer == "ACCEPTED" %}Zugesagt{% elif answer == "DECLINED" %}Abgesagt{% elif answer == "TENTATIVE" %}Vielleicht{% else %}Gespeichert{% endif %}</strong>.</p>
+<dl>
+<dt>Termin</dt>
+<dd>{{ event.summary }}</dd>
+<dt>Wann</dt>
+<dd>{{ when(event.start, event.end) }}</dd>
+{% if event.location %}<dt>Wo</dt>
+<dd>{{ event.location }}</dd>
+{% endif %}</dl>
+<p>Sie können Ihre Antwort jederzeit über denselben Link ändern.</p>
+<p><a class="button" href="{{ link }}">Meine Antwort ändern</a></p>
+{% endblock %}

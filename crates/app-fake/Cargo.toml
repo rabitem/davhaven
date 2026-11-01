@@ -1,0 +1,26 @@
+[package]
+name = "davhaven-app-fake"
+description = "In-memory fake of the Davhaven application services for protocol crate tests."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-app.workspace = true
+davhaven-domain.workspace = true
+davhaven-wire.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+uuid.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

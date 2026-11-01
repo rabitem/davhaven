@@ -1,0 +1,152 @@
+schema_version: 1
+name: ccs-caldavtester-invite-internal
+description: >
+  The implicit scheduling tests of the CalendarServer test suite for a meeting with attendees on the same server: the
+  organizer's PUT returns a Schedule-Tag, every attendee has the invitation in its inbox (a METHOD:REQUEST item) and a
+  copy in its calendar, the organizer's copy has SCHEDULE-STATUS=1.2 for each, and a change of the time is sent as an
+  update with a higher SEQUENCE.
+client: ccs-caldavtester
+feature: invite-internal
+origin: synthetic
+provenance: >
+  Written after scripts/tests/CalDAV/schedule-* and implicit/* of ccs-caldavtester (see NOTICE); the principals are the
+  users of the fixture world.
+actors:
+  olivia: owner
+  otto: other_user
+  mia: group_member
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the organizer puts a meeting with two attendees
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ccs-invite.ics"
+      headers: { If-None-Match: "*" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//CalendarServer tests//EN
+        BEGIN:VEVENT
+        UID:ccs-invite-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270407T090000Z
+        DTEND:20270407T100000Z
+        SUMMARY:Implicit scheduling
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=Olivia Owner;PARTSTAT=ACCEPTED:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=Otto Other;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:otto@{{login_domain}}
+        ATTENDEE;CN=Mia Member;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:mia@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the organizer's copy has the delivery state of each attendee
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/ccs-invite.ics"
+    expect:
+      status: 200
+      ical_contains:
+        - "SCHEDULE-STATUS=1.2:mailto:otto@{{login_domain}}"
+        - "SCHEDULE-STATUS=1.2:mailto:mia@{{login_domain}}"
+
+  - name: the first attendee has an item in the inbox
+    as: otto
+    request:
+      method: PROPFIND
+      path: /dav/calendars/{{tenant}}/otto/inbox/
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:getetag/></D:prop></D:propfind>
+    capture:
+      item: { xpath: "/{DAV:}multistatus/{DAV:}response[2]/{DAV:}href" }
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 2 }
+
+  - name: the item is a REQUEST
+    as: otto
+    request:
+      method: REPORT
+      path: /dav/calendars/{{tenant}}/otto/inbox/
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-multiget xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/><C:calendar-data/></D:prop>
+          <D:href>{{item}}</D:href>
+        </C:calendar-multiget>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "METHOD:REQUEST" }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "UID:ccs-invite-1@example.org" }
+
+  - name: the second attendee has a copy in the calendar
+    as: mia
+    request:
+      method: REPORT
+      path: /dav/calendars/{{tenant}}/mia/personal/
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/><C:calendar-data/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"/></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 1 }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "UID:ccs-invite-1@example.org" }
+
+  - name: the organizer moves the meeting
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ccs-invite.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//CalendarServer tests//EN
+        BEGIN:VEVENT
+        UID:ccs-invite-1@example.org
+        DTSTAMP:20270102T000000Z
+        SEQUENCE:1
+        DTSTART:20270407T100000Z
+        DTEND:20270407T110000Z
+        SUMMARY:Implicit scheduling
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=Olivia Owner;PARTSTAT=ACCEPTED:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=Otto Other;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:otto@{{login_domain}}
+        ATTENDEE;CN=Mia Member;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:mia@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the attendee's copy has the new time
+    as: mia
+    request:
+      method: REPORT
+      path: /dav/calendars/{{tenant}}/mia/personal/
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/><C:calendar-data/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"/></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "DTSTART:20270407T100000Z" }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "SEQUENCE:1" }

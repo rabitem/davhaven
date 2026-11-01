@@ -1,0 +1,83 @@
+schema_version: 1
+name: python-caldav-save-with-invites
+description: >
+  The python `caldav` library saves an event with two attendees of the tenant and a third address that no principal has: the
+  two attendees get the invitation in the scheduling inbox, and the organizer's copy records the internal delivery for them.
+client: python-caldav
+feature: invite-internal
+origin: synthetic
+provenance: >
+  Ported from the functional tests of python-caldav (tests/test_caldav.py: testInviteAndRespond,
+  testAcceptInviteUsernameEmailFallback); the library puts the attendees into the event and lets the server schedule.
+actors:
+  olivia: owner
+  otto: other_user
+  mia: group_member
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the organizer saves an event with two attendees and an address that no principal has
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/py-invites.ics"
+      headers: { Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//python-caldav//caldav//EN
+        BEGIN:VEVENT
+        UID:py-invites-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270326T090000Z
+        DTEND:20270326T100000Z
+        SUMMARY:Team
+        ORGANIZER:mailto:olivia@{{login_domain}}
+        ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:otto@{{login_domain}}
+        ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:mia@{{login_domain}}
+        ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:nobody-here@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the first attendee has an invitation in the inbox
+    as: otto
+    request:
+      method: PROPFIND
+      path: /dav/calendars/{{tenant}}/otto/inbox/
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:getetag/></D:prop></D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 2 }
+
+  - name: the second attendee has one as well
+    as: mia
+    request:
+      method: PROPFIND
+      path: /dav/calendars/{{tenant}}/mia/inbox/
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:getetag/></D:prop></D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 2 }
+
+  - name: the organizer's copy records the two internal deliveries
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/py-invites.ics"
+    expect:
+      status: 200
+      ical_contains:
+        - "SCHEDULE-STATUS=1.2:mailto:otto@{{login_domain}}"
+        - "SCHEDULE-STATUS=1.2:mailto:mia@{{login_domain}}"

@@ -1,0 +1,120 @@
+schema_version: 1
+name: ios-calendar-share
+description: >
+  Calendar on iOS accepts a calendar that a colleague shared read-only: the share shows up as an invitation in the
+  notification collection, the user accepts it with CS:invite-reply, the calendar is a binding in the home that cannot be
+  written to, and when the owner withdraws the share the binding is gone.
+client: ios-calendar
+feature: share
+origin: synthetic
+provenance: >
+  Documents as Calendar on iOS exchanges them for calendar sharing (testdata/dav/sharing, reconstructed from the
+  CalendarServer sharing specification and public traces); iOS polls the notification collection with a PROPFIND and a
+  sync-collection report.
+actors:
+  olivia: owner
+  otto: other_user
+variables:
+  home: /dav/calendars/{{tenant}}/olivia
+  mine: /dav/calendars/{{tenant}}/otto
+steps:
+  - name: the owner shares the calendar read-only with a colleague
+    as: olivia
+    request:
+      method: POST
+      path: "{{home}}/projects/"
+      headers: { Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <CS:share xmlns:CS="http://calendarserver.org/ns/">
+          <CS:set>
+            <D:href xmlns:D="DAV:">mailto:otto@{{login_domain}}</D:href>
+            <CS:common-name>Otto Other</CS:common-name>
+            <CS:summary>Projects</CS:summary>
+            <CS:read/>
+          </CS:set>
+        </CS:share>
+    expect:
+      status: 200
+
+  - name: the phone of the colleague finds the invitation in the notification collection
+    as: otto
+    request:
+      method: PROPFIND
+      path: "{{mine}}/notifications/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body_file: dav/sharing/propfind-notifications.xml
+    capture:
+      notification: { xpath: "/{DAV:}multistatus/{DAV:}response[2]/{DAV:}href" }
+    expect:
+      status: 207
+
+  - name: the invitation offers read access
+    as: otto
+    request:
+      method: GET
+      path: "{{notification}}"
+    capture:
+      invite: { xpath: "//{http://calendarserver.org/ns/}uid" }
+    expect:
+      status: 200
+      body_contains: ["invite-notification", "<CS:read/>"]
+      body_excludes: ["read-write"]
+
+  - name: the colleague accepts
+    as: otto
+    request:
+      method: POST
+      path: "{{mine}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <CS:invite-reply xmlns:CS="http://calendarserver.org/ns/">
+          <CS:invite-accepted/>
+          <CS:hosturl><D:href xmlns:D="DAV:">{{home}}/projects/</D:href></CS:hosturl>
+          <CS:in-reply-to>{{invite}}</CS:in-reply-to>
+          <CS:summary>Projects</CS:summary>
+        </CS:invite-reply>
+    expect:
+      status: 200
+      xpath:
+        - { path: "//{http://calendarserver.org/ns/}shared-as/{DAV:}href", contains: "{{mine}}/" }
+
+  - name: the shared calendar is in the home of the colleague and cannot be written to
+    as: otto
+    request:
+      method: PROPFIND
+      path: "{{mine}}/projects/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:propfind xmlns:A="DAV:"><A:prop><A:current-user-privilege-set/><A:displayname/></A:prop></A:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}read" }
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}write-content", count: 0 }
+
+  - name: the owner withdraws the share
+    as: olivia
+    request:
+      method: POST
+      path: "{{home}}/projects/"
+      headers: { Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <CS:share xmlns:CS="http://calendarserver.org/ns/">
+          <CS:remove>
+            <D:href xmlns:D="DAV:">mailto:otto@{{login_domain}}</D:href>
+          </CS:remove>
+        </CS:share>
+    expect:
+      status: 200
+
+  - name: the calendar is gone from the home of the colleague
+    as: otto
+    request:
+      method: GET
+      path: "{{mine}}/projects/shared-event@acme.example.ics"
+    expect:
+      status: 404

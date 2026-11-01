@@ -1,0 +1,8 @@
+{
+  "token_type": "Bearer",
+  "scope": "Calendars.Read User.Read",
+  "expires_in": 3599,
+  "ext_expires_in": 3599,
+  "access_token": "EwBwA8l6BAAUfixture-access-token",
+  "refresh_token": "M.R3_BAY.-CfixtureRefreshToken1"
+}

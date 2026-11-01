@@ -1,0 +1,219 @@
+---
+source: crates/mcp/tests/mcp/conformance.rs
+expression: catalog
+---
+[
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "input": {},
+    "name": "list_calendars",
+    "output": {
+      "calendars": "required"
+    },
+    "scope": "mcp:read",
+    "title": "List calendars"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "input": {
+      "calendar_id": "optional",
+      "cursor": "optional",
+      "end": "required",
+      "include_attendees": "optional",
+      "limit": "optional",
+      "start": "required"
+    },
+    "name": "list_events",
+    "output": {
+      "events": "required",
+      "next_cursor": "optional",
+      "truncated": "required"
+    },
+    "scope": "mcp:read",
+    "title": "List events"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "input": {
+      "calendar_id": "required",
+      "event_id": "required",
+      "include_attendees": "optional",
+      "recurrence_id": "optional"
+    },
+    "name": "get_event",
+    "output": {
+      "event": "required"
+    },
+    "scope": "mcp:read",
+    "title": "Get an event"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "input": {
+      "calendar_id": "optional",
+      "cursor": "optional",
+      "end": "optional",
+      "include_attendees": "optional",
+      "limit": "optional",
+      "query": "required",
+      "start": "optional"
+    },
+    "name": "search_events",
+    "output": {
+      "events": "required",
+      "next_cursor": "optional",
+      "truncated": "required"
+    },
+    "scope": "mcp:read",
+    "title": "Search events"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "input": {
+      "addresses": "required",
+      "end": "required",
+      "start": "required"
+    },
+    "name": "free_busy",
+    "output": {
+      "entries": "required"
+    },
+    "scope": "mcp:read",
+    "title": "Free and busy times"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "input": {
+      "addresses": "required",
+      "duration_minutes": "required",
+      "end": "required",
+      "limit": "optional",
+      "start": "required",
+      "time_zone": "optional",
+      "working_hours": "optional"
+    },
+    "name": "find_free_slots",
+    "output": {
+      "slots": "required",
+      "truncated": "required"
+    },
+    "scope": "mcp:read",
+    "title": "Find free slots"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "input": {
+      "calendar_id": "required",
+      "client_request_id": "optional",
+      "event": "required",
+      "notify_attendees": "optional"
+    },
+    "name": "create_event",
+    "output": {
+      "created": "required",
+      "event": "required"
+    },
+    "scope": "mcp:write",
+    "title": "Create an event"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "input": {
+      "calendar_id": "required",
+      "changes": "required",
+      "event_id": "required",
+      "if_match": "optional",
+      "notify_attendees": "optional",
+      "recurrence_id": "optional",
+      "scope": "optional"
+    },
+    "name": "update_event",
+    "output": {
+      "event": "required"
+    },
+    "scope": "mcp:write",
+    "title": "Update an event"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "input": {
+      "calendar_id": "required",
+      "event_id": "required",
+      "if_match": "optional",
+      "notify_attendees": "optional",
+      "recurrence_id": "optional",
+      "scope": "optional"
+    },
+    "name": "delete_event",
+    "output": {
+      "deleted": "required"
+    },
+    "scope": "mcp:write",
+    "title": "Delete an event"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "input": {
+      "calendar_id": "required",
+      "comment": "optional",
+      "event_id": "required",
+      "partstat": "required"
+    },
+    "name": "respond_to_invitation",
+    "output": {
+      "event": "required"
+    },
+    "scope": "mcp:write",
+    "title": "Respond to an invitation"
+  }
+]

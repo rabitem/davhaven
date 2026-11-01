@@ -1,0 +1,68 @@
+schema_version: 1
+name: thunderbird-account-setup
+description: >
+  Thunderbird (Lightning) adds a calendar on the network by URL: the user pastes the URL of the calendar home, Thunderbird
+  asks for the calendars in it with a Depth 1 PROPFIND (resource type, display name, colour, privileges, CTag) and lists
+  the ones that are calendars.
+client: thunderbird
+feature: account-setup
+origin: synthetic
+provenance: >
+  Body is testdata/dav/evolution-propfind-calendar.xml in the form Thunderbird sends for its calendar listing
+  (resourcetype, displayname, getctag, supported component set, colour, privileges, owner), reconstructed from public traces.
+actors:
+  olivia: owner
+variables:
+  home: /dav/calendars/{{tenant}}/olivia/
+steps:
+  - name: the calendars of the home are listed
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}"
+      headers: { Depth: "1", Content-Type: "text/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8"?>
+        <propfind xmlns="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/" xmlns:I="http://apple.com/ns/ical/">
+          <prop>
+            <resourcetype/>
+            <getcontenttype/>
+            <displayname/>
+            <CS:getctag/>
+            <C:supported-calendar-component-set/>
+            <I:calendar-color/>
+            <current-user-privilege-set/>
+            <owner/>
+          </prop>
+        </propfind>
+    expect:
+      status: 207
+      statuses:
+        "{{home}}personal/": 200
+        "{{home}}projects/": 200
+      properties:
+        - { href: "{{home}}personal/", name: "{DAV:}displayname", value: "Personal" }
+      xpath:
+        - { path: "//{DAV:}response[{DAV:}href='{{home}}personal/']//{DAV:}resourcetype/{urn:ietf:params:xml:ns:caldav}calendar" }
+
+  - name: a calendar answers a Depth 0 request for its own properties
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}personal/"
+      headers: { Depth: "0", Content-Type: "text/xml; charset=utf-8" }
+      body_file: dav/evolution-propfind-calendar.xml
+    expect:
+      status: 207
+      statuses:
+        "{{home}}personal/": 200
+
+  - name: the options of the calendar announce calendar access
+    as: olivia
+    request:
+      method: OPTIONS
+      path: "{{home}}personal/"
+    expect:
+      status: [200, 204]
+      headers:
+        dav: { contains: calendar-access }

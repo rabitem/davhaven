@@ -1,0 +1,60 @@
+# Fuzz targets of the iCalendar layer (PLAN L8). The package is deliberately outside the workspace: it needs a
+# nightly toolchain and the libFuzzer runtime, which the regular build and the lock file of the workspace must not
+# see. CI keeps it honest: `cargo check` and `cargo deny` run on this manifest and its own lock file, Dependabot
+# updates it, and the nightly workflow runs every target. Run a target with `cargo +nightly fuzz run <target>` from
+# `crates/ical`.
+[package]
+name = "davhaven-ical-fuzz"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+davhaven-domain = { path = "../../domain" }
+davhaven-ical = { path = ".." }
+# `chrono` is pinned like the workspace pins it: the targets build `DateTime<Utc>` values for the crate under test,
+# so a version that drifts from `[workspace.dependencies]` fails the `cargo check` of this package.
+chrono = { version = "=0.4.45", default-features = false, features = ["clock", "std"] }
+libfuzzer-sys = "=0.4.13"
+
+[workspace]
+
+[[bin]]
+name = "parse_validate"
+path = "fuzz_targets/parse_validate.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "expand_filter"
+path = "fuzz_targets/expand_filter.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "itip"
+path = "fuzz_targets/itip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "zones"
+path = "fuzz_targets/zones.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "everything"
+path = "fuzz_targets/everything.rs"
+test = false
+doc = false
+bench = false

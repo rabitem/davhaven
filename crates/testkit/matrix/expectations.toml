@@ -1,0 +1,727 @@
+# The permission oracle of Davhaven (PLAN 3.2).
+#
+# This file is HAND-WRITTEN and hand-reviewed. The matrix harness reads it and asserts that the server answers every
+# case of (actor x calendar x surface x operation) exactly like this. It is never generated from, and never imports,
+# the code under test (`davhaven_domain::authz`); when the server and this file disagree, a person decides which one
+# is wrong, and this file is the one reviewed against PLAN 2.6.
+#
+# How a case is resolved (see `Expectations::resolve` in `crates/testkit/src/matrix.rs`):
+#   1. the first matching [[exception]] row decides;
+#   2. an operation that does not exist on the surface is hidden;
+#   3. a tenant token that carries only one scope lacks the scope of the operation: forbidden;
+#   4. no effective access: hidden; access below what the operation needs: forbidden; otherwise allowed.
+#      The effective access is the [[access]] row of (actor, calendar), lowered by the matching [[cap]] rows.
+#
+# Rows select a dimension with a name, a list of names or "*"; a selector that is left out means "*".
+# Actors:     owner group_member sharee_read sharee_read_write grantee_via_group pending_sharee declined_sharee
+#             other_user other_tenant_user suspended_user service_principal service_grantee service_writer tenant_token
+#             other_tenant_token system_token anonymous
+# Calendars:  personal group managed shared mirror   (the fixture world of `davhaven-fixtures`, PLAN F0.11)
+# Surfaces:   dav api mcp feed rsvp
+# Levels:     none < free_busy < read < read_write < admin < owner
+#
+# STATUS: settled against the real application. Every case of the matrix is run in process on the memory and
+# PostgreSQL stores (`crates/it/tests/permissions.rs`, the MCP column included), the administration operations of the API
+# (`crates/it/tests/admin_matrix.rs`) and the credentials of every kind in every state (`crates/it/tests/credentials_matrix.rs`)
+# are run the same way, and the cases that must change nothing run against a deployed instance (`davhaven-conformance run`).
+# A disagreement between this file and the server is a decision for a person: either the server or the file is wrong, and the
+# file is the one reviewed against PLAN 2.6. A deviation that is known and tracked is a [[known_issue]] row, which the harness
+# checks against what the server does today.
+#
+# The tables of the file, in order: [status.*] (what each outcome answers, with the problem codes), [[access]] [[cap]] [[needs]]
+# [[available]] [[scope]] [[exception]] [[known_issue]] (the matrix of calendars), then [[admin]] (the scopes of the
+# administration operations), [[admin_actor]] (the rule of every actor on them), [[token_scopes]] (the scopes each kind of token
+# can carry), [[pending]] (operations that a service does not offer yet, which answer 501 meanwhile), and [[credential_surface]] and
+# [[credential_state]] (what each surface takes and what a credential in each state answers).
+#
+# `docs/permission-matrix.md` renders this file (`cargo xtask matrix`); the two are compared in CI.
+
+schema_version = 1
+
+# ---------------------------------------------------------------------------------------------------------------
+# The status policy (PLAN 2.6): the answer each expectation stands for.
+# ---------------------------------------------------------------------------------------------------------------
+
+[status.allow]
+http = "2xx"
+note = "the operation succeeds (200, 201, 204, 207 ...)"
+
+[status.unauthenticated]
+http = "401"
+challenge = true
+problem_code = "unauthenticated"
+note = "no or invalid credentials, a suspended principal or tenant, or a credential presented on a surface it is not bound to; the response carries WWW-Authenticate (Basic on dav, Bearer on api and mcp)"
+
+[status.hidden]
+http = "404"
+problem_code = "not-found"
+note = "no read visibility, including other tenants' and unknown resources; indistinguishable from a missing resource"
+
+[status.forbidden]
+http = "403"
+dav_precondition = "DAV:need-privileges"
+problem_code = "forbidden"
+note = "visible but not permitted: DAV answers with DAV:need-privileges, the API and MCP with the problem `forbidden`"
+
+[status.precondition_failed]
+http = "412"
+problem_code = "precondition-failed"
+note = "a stale If-Match or If-Schedule-Tag-Match; not an authorization decision, listed for the precondition cases"
+
+# ---------------------------------------------------------------------------------------------------------------
+# Default rule: the effective access of an actor on a calendar (PLAN 2.6, "Effective access").
+# An actor without a row has no access: the calendar is invisible.
+# ---------------------------------------------------------------------------------------------------------------
+
+# The owner owns the personal, the shared and the mirror calendar. The group and managed calendars belong to
+# the group `team` and to the service principal.
+[[access]]
+actor = "owner"
+calendar = ["personal", "shared", "mirror"]
+level = "owner"
+
+# A member of the group `team`: the tenant's group default access (read_write) on the group calendar, and the
+# accepted read grant of the group on the managed calendar.
+[[access]]
+actor = "group_member"
+calendar = "group"
+level = "read_write"
+
+[[access]]
+actor = "group_member"
+calendar = "managed"
+level = "read"
+
+# Accepted grants on the shared calendar. Pending and declined grants confer nothing, so there is no row for
+# pending_sharee and declined_sharee: they have no access.
+[[access]]
+actor = "sharee_read"
+calendar = "shared"
+level = "read"
+
+[[access]]
+actor = "sharee_read_write"
+calendar = "shared"
+level = "read_write"
+
+[[access]]
+actor = "grantee_via_group"
+calendar = "shared"
+level = "read"
+
+# The service principal owns the managed calendar.
+[[access]]
+actor = "service_principal"
+calendar = "managed"
+level = "owner"
+
+# Two more service principals are granted calendars through the management API (PLAN 2.9: a grant may name a service principal,
+# which client sharing never offers). A grant gives a service principal what it gives anybody: the assistant works in the group's
+# calendar (read_write) and reads the managed one, and the importer writes the managed one. Neither owns anything, and neither has
+# a password, so DAV refuses them like it refuses the owner of the managed calendar (see the credential rows below).
+[[access]]
+actor = "service_grantee"
+calendar = "group"
+level = "read_write"
+
+[[access]]
+actor = "service_grantee"
+calendar = "managed"
+level = "read"
+
+[[access]]
+actor = "service_writer"
+calendar = "managed"
+level = "read_write"
+
+# A tenant token administers calendars of every kind (within its scopes). What it may do with events is
+# restricted by the exception rows below.
+[[access]]
+actor = "tenant_token"
+level = "owner"
+
+# ---------------------------------------------------------------------------------------------------------------
+# Default rule: caps. Managed and mirror calendars are read-only for principals on DAV; mirrors are read-only on every
+# principal surface (PLAN 2.6). Tenant tokens and the home-level operations are not capped (see `target` below).
+# ---------------------------------------------------------------------------------------------------------------
+
+[[cap]]
+actor = [
+  "owner", "group_member", "sharee_read", "sharee_read_write", "grantee_via_group", "pending_sharee",
+  "declined_sharee", "other_user", "service_principal", "service_grantee", "service_writer",
+]
+calendar = "managed"
+surface = "dav"
+max = "read"
+
+[[cap]]
+actor = [
+  "owner", "group_member", "sharee_read", "sharee_read_write", "grantee_via_group", "pending_sharee",
+  "declined_sharee", "other_user", "service_principal", "service_grantee", "service_writer",
+]
+calendar = "mirror"
+surface = ["dav", "api", "mcp"]
+max = "read"
+
+# ---------------------------------------------------------------------------------------------------------------
+# Default rule: what an operation needs (PLAN 2.6 tables). `target = "home"` marks the operations that address the
+# home of the calendar's owner instead of a calendar; caps do not apply to them.
+# ---------------------------------------------------------------------------------------------------------------
+
+[[needs]]
+operation = ["read_collection", "list_objects", "read_object", "copy_object_from", "read_feed"]
+level = "read"
+
+# Free-busy, and the principal resource of a person (addresses and the URL of the home), are open to every authenticated
+# principal of the tenant, whatever access they have; the exception rows hide them from other tenants.
+[[needs]]
+operation = ["free_busy_query", "read_principal"]
+level = "none"
+
+[[needs]]
+operation = [
+  "create_object", "move_object_to", "copy_object_to", "update_object", "batch_upsert", "respond_to_invitation",
+  "delete_object", "move_object_from", "update_calendar",
+]
+level = "read_write"
+
+# Per-binding properties and removing one's own binding need a visible calendar and a binding, nothing more.
+[[needs]]
+operation = ["prop_patch_binding", "remove_binding"]
+level = "read"
+
+[[needs]]
+operation = ["rename_calendar", "share_calendar", "list_grants", "put_grant", "delete_grant"]
+level = "admin"
+
+[[needs]]
+operation = "delete_calendar"
+level = "owner"
+
+[[needs]]
+operation = ["create_calendar", "read_inbox", "delete_inbox_item", "post_outbox", "read_notifications", "delete_notification", "read_home"]
+level = "owner"
+target = "home"
+
+# Answering an invitation is decided by the exception rows (only a pending grantee may); the level is never used.
+[[needs]]
+operation = "reply_invite"
+level = "owner"
+
+# RSVP pages are decided by the token state, not by an actor; the exception rows hide them from every actor.
+[[needs]]
+operation = ["rsvp_view", "rsvp_answer"]
+level = "none"
+
+# ---------------------------------------------------------------------------------------------------------------
+# Default rule: the operations that exist on each surface. Everything else is hidden (404 or 405 for the method).
+# ---------------------------------------------------------------------------------------------------------------
+
+[[available]]
+surface = "dav"
+operations = [
+  "read_collection", "list_objects", "read_object", "free_busy_query", "create_object", "update_object",
+  "delete_object", "move_object_from", "move_object_to", "copy_object_from", "copy_object_to",
+  "prop_patch_binding", "update_calendar", "create_calendar", "delete_calendar",
+  "remove_binding", "share_calendar", "reply_invite", "read_inbox", "delete_inbox_item", "post_outbox",
+  "read_notifications", "delete_notification", "read_home", "read_principal",
+]
+
+[[available]]
+surface = "api"
+operations = [
+  "read_collection", "list_objects", "read_object", "create_object", "update_object",
+  "delete_object", "batch_upsert", "update_calendar", "rename_calendar",
+  "create_calendar", "delete_calendar", "list_grants", "put_grant", "delete_grant",
+]
+
+[[available]]
+surface = "mcp"
+operations = [
+  "read_collection", "list_objects", "read_object", "free_busy_query", "create_object", "update_object",
+  "delete_object", "respond_to_invitation",
+]
+
+[[available]]
+surface = "feed"
+operations = ["read_feed"]
+
+[[available]]
+surface = "rsvp"
+operations = ["rsvp_view", "rsvp_answer"]
+
+# ---------------------------------------------------------------------------------------------------------------
+# Default rule: the token scope an operation needs (PLAN 2.6, F0.10). Checked for tenant tokens that carry one
+# scope; principal tokens carry every scope a principal token may have.
+# ---------------------------------------------------------------------------------------------------------------
+
+[[scope]]
+surface = "api"
+operation = "read_collection"
+scope = "calendars:read"
+
+[[scope]]
+surface = "api"
+operation = ["list_objects", "read_object", "free_busy_query"]
+scope = "events:read"
+
+[[scope]]
+surface = "api"
+operation = ["create_object", "update_object", "delete_object", "batch_upsert", "respond_to_invitation"]
+scope = "events:write"
+
+[[scope]]
+surface = "api"
+operation = ["update_calendar", "rename_calendar", "create_calendar", "delete_calendar", "list_grants", "put_grant", "delete_grant"]
+scope = "calendars:write"
+
+[[scope]]
+surface = "mcp"
+operation = ["read_collection", "list_objects", "read_object", "free_busy_query"]
+scope = "mcp:read"
+
+[[scope]]
+surface = "mcp"
+operation = ["create_object", "update_object", "delete_object", "respond_to_invitation"]
+scope = "mcp:write"
+
+# ---------------------------------------------------------------------------------------------------------------
+# Exception rows: the first matching row wins over every default rule above. Order matters.
+# ---------------------------------------------------------------------------------------------------------------
+
+# -- Identity: decided before any permission ----------------------------------------------------------------------
+
+# Feeds and RSVP pages identify by the token in the URL. A request without a valid token is an unknown token: 404.
+[[exception]]
+actor = ["anonymous", "suspended_user", "tenant_token", "other_tenant_token", "system_token"]
+surface = ["feed", "rsvp"]
+expect = "hidden"
+
+# No credential at all.
+[[exception]]
+actor = "anonymous"
+expect = "unauthenticated"
+
+# A suspended principal cannot authenticate with any credential.
+[[exception]]
+actor = "suspended_user"
+expect = "unauthenticated"
+
+# Credentials are bound to their surface. Tenant and system tokens are not DAV credentials, and the service
+# principals have no app password: a grant gives them calendars on the API and on MCP, never on DAV.
+[[exception]]
+actor = ["tenant_token", "other_tenant_token", "system_token", "service_principal", "service_grantee", "service_writer"]
+surface = "dav"
+expect = "unauthenticated"
+
+# Free-busy is asked for at the user's own outbox (DAV) or by the person's own token (MCP), which exist in their own tenant,
+# so the request is answered. The answer says that the address is not known here (3.7) and carries no busy time: the harness
+# checks that nothing of the other tenant's people is in the body.
+[[exception]]
+actor = "other_tenant_user"
+surface = ["dav", "mcp"]
+operation = "free_busy_query"
+expect = "allow"
+
+# A user of another tenant, or the administrator of another tenant, authenticates, but every resource of this tenant is
+# invisible to them: 404, and not a 403 (ADR-0012).
+[[exception]]
+actor = ["other_tenant_user", "other_tenant_token"]
+expect = "hidden"
+
+# RSVP pages are answered by attendees holding an RSVP token. None of the fixture roles is one, so the token
+# presented is unknown. The token-state cases (valid, expired, revoked) belong to the RSVP matrix.
+[[exception]]
+surface = "rsvp"
+expect = "hidden"
+
+# -- Feeds: any principal with a feed token reads what they can read (derived), others are unknown tokens ------------
+
+# -- System tokens ----------------------------------------------------------------------------------------------
+
+# A system token may only use `system:tenants` and never reads calendar data: it is authenticated, and every operation
+# on calendar data of the API lacks its scope, which is a refusal (403) like the one of a tenant token without the scope.
+# (MCP is for tokens of principals only: see the next section.)
+[[exception]]
+actor = "system_token"
+surface = "api"
+expect = "forbidden"
+
+# -- Tenant tokens ---------------------------------------------------------------------------------------------
+
+# Tenant and system tokens are API credentials; MCP needs a principal token, because an assistant acts as a person: a token
+# that acts as nobody is offered no tools, and every call answers not found.
+[[exception]]
+actor = ["tenant_token", "other_tenant_token", "system_token"]
+surface = "mcp"
+expect = "hidden"
+
+# `events:*` on a tenant token reaches managed and group calendars only, never personal, user or mirror calendars.
+[[exception]]
+actor = "tenant_token"
+calendar = ["personal", "shared", "mirror"]
+operation = [
+  "list_objects", "read_object", "free_busy_query", "create_object", "update_object", "delete_object", "batch_upsert",
+]
+expect = "forbidden"
+
+# A tenant token acts as no principal, so it cannot answer an invitation.
+[[exception]]
+actor = "tenant_token"
+operation = "respond_to_invitation"
+expect = "forbidden"
+
+# Grants of mirror calendars are managed by the sync engine.
+[[exception]]
+actor = "tenant_token"
+calendar = "mirror"
+operation = ["put_grant", "delete_grant"]
+expect = "forbidden"
+
+# A mirror calendar goes with its account: `DELETE /tenants/{tenant}/external-accounts/{id}` deletes both. Deleted on its own it
+# would leave the account with nothing to pull into (`mirror_missing`), and only a disconnection and a new consent would help.
+[[exception]]
+actor = "tenant_token"
+calendar = "mirror"
+operation = "delete_calendar"
+expect = "forbidden"
+
+# -- Sharing ---------------------------------------------------------------------------------------------------
+
+# A calendar of a kind that cannot be shared through DAV (PLAN 2.9) refuses the request for what the calendar is, not for
+# a privilege the caller lacks, so the 403 names no privilege.
+[[exception]]
+actor = "owner"
+calendar = "mirror"
+surface = "dav"
+operation = "share_calendar"
+expect = "forbidden"
+waive_details = "managed and mirror calendars cannot be shared through DAV: a refusal by kind, no privilege to name"
+
+[[exception]]
+actor = "group_member"
+calendar = "managed"
+surface = "dav"
+operation = "share_calendar"
+expect = "forbidden"
+waive_details = "managed and mirror calendars cannot be shared through DAV: a refusal by kind, no privilege to name"
+
+# A grant that is marked `required` makes the calendar mandatory for everybody it reaches (PLAN 2.9). The group `team` is granted the
+# managed calendar and its own calendar that way, so a member who deletes the bound collection is refused (the privilege `unbind` is
+# what they lack) and the binding stays; an optional grant (the grants of the shared calendar to its sharees and to the group `viewers`)
+# lets the sharee leave or hide the calendar, which is the default row of the operation.
+[[exception]]
+actor = "group_member"
+calendar = ["group", "managed"]
+surface = "dav"
+operation = "remove_binding"
+expect = "forbidden"
+
+# -- Answering invitations -----------------------------------------------------------------------------------------
+
+[[exception]]
+actor = "pending_sharee"
+calendar = "shared"
+surface = "dav"
+operation = "reply_invite"
+expect = "allow"
+
+# Everyone else has no invitation to answer: the notification does not exist for them.
+[[exception]]
+operation = "reply_invite"
+expect = "hidden"
+
+# -- Homes: DAV addresses the home of one principal; only that principal may use it ----------------------------
+
+# The group and the managed calendar live in the homes of `team` and of the service principal, which nobody logs in
+# as on DAV.
+[[exception]]
+calendar = ["group", "managed"]
+surface = "dav"
+operation = ["create_calendar", "read_inbox", "delete_inbox_item", "post_outbox", "read_notifications", "delete_notification", "read_home"]
+expect = "hidden"
+
+# The same on the API: the home of another principal is not visible, so creating a calendar there is a 404 and not a 403. A service
+# principal that is granted calendars is no exception: the grant is on the calendar, not on the home of its owner.
+[[exception]]
+actor = [
+  "group_member", "sharee_read", "sharee_read_write", "grantee_via_group", "pending_sharee", "declined_sharee",
+  "other_user", "service_grantee", "service_writer",
+]
+surface = "api"
+operation = "create_calendar"
+expect = "hidden"
+
+# Everybody but the owner who probes the owner's home.
+[[exception]]
+actor = [
+  "group_member", "sharee_read", "sharee_read_write", "grantee_via_group", "pending_sharee", "declined_sharee",
+  "other_user",
+]
+surface = "dav"
+operation = ["create_calendar", "read_inbox", "delete_inbox_item", "post_outbox", "read_notifications", "delete_notification", "read_home"]
+expect = "hidden"
+
+# ---------------------------------------------------------------------------------------------------------------
+# Administration operations of the management API (PLAN F0.10): the operations that are not about one calendar. A token
+# needs at least one of the scopes of the row (PLAN 2.6). Only tokens administer: a principal token never does, whatever
+# its scopes (it acts as its principal, through the rules of the calendar rows above), a tenant token does within its
+# scopes and its tenant, a system token only where `system:tenants` is listed. The operations are named by their
+# `operationId` in `docs/openapi.json`; the test `every_operation_of_the_api_is_covered` checks that this list and the
+# document name the same operations with the same scopes.
+# ---------------------------------------------------------------------------------------------------------------
+
+[[admin]]
+operation = ["listTenants", "putTenant", "patchTenant", "deleteTenant"]
+scopes = ["system:tenants"]
+
+# A tenant is also readable by the administrator of the tenant itself.
+[[admin]]
+operation = "getTenant"
+scopes = ["system:tenants", "principals:read"]
+
+[[admin]]
+operation = ["listPrincipals", "getPrincipal", "getMembers", "getClientConfig"]
+scopes = ["principals:read"]
+
+[[admin]]
+operation = ["putPrincipal", "patchPrincipal", "deletePrincipal", "setMembers", "addMember", "removeMember"]
+scopes = ["principals:write"]
+
+# Credentials: `credentials:write` is the power to act as any user of the tenant (it mints app passwords and tokens for them).
+[[admin]]
+operation = [
+  "listAppPasswords", "createAppPassword", "revokeAppPassword",
+  "listFeedTokens", "createFeedToken", "revokeFeedToken", "rotateFeedToken",
+  "createAppleMobileconfig", "createDavx5Config",
+  "listApiTokens", "createApiToken", "revokeApiToken",
+]
+scopes = ["credentials:write"]
+
+[[admin]]
+operation = [
+  "listWebhooks", "createWebhook", "getWebhook", "patchWebhook", "deleteWebhook", "rotateWebhookSecret", "pingWebhook",
+  "listDeliveries", "redeliverWebhook",
+]
+scopes = ["webhooks:manage"]
+
+[[admin]]
+operation = ["listProviders", "listExternalAccounts", "createExternalAccount", "deleteExternalAccount"]
+scopes = ["providers:manage"]
+
+[[admin]]
+operation = "listAuditEvents"
+scopes = ["audit:read"]
+
+[[admin]]
+operation = ["listOutbox", "retryOutbox"]
+scopes = ["outbox:manage"]
+
+[[admin]]
+operation = "inboundItip"
+scopes = ["itip:inbound"]
+
+[[admin]]
+operation = ["searchCalendars", "listBindings"]
+scopes = ["calendars:read"]
+
+# Showing a hidden binding of a principal's home again (the principal removed a shared calendar in a calendar app).
+[[admin]]
+operation = "restoreBinding"
+scopes = ["calendars:write"]
+
+# ---------------------------------------------------------------------------------------------------------------
+# Who gets what from the administration operations (PLAN 2.6). The rules are named; `operation x actor` is resolved
+# by `permissions::admin::expected`:
+#   unauthenticated  refused at the door (401);
+#   refused          authenticated and refused whatever it carries (403): principals act as themselves and never administer;
+#   other_tenant     another tenant's actor: 404 where the path names a tenant (nothing of it is visible), 403 where it does
+#                    not (the list of tenants has nothing to hide);
+#   by_scope         decided by the scopes the token carries (`[[token_scopes]]`): allowed with one of the scopes of the
+#                    operation (`[[admin]]`), 403 without.
+# A principal token may carry `calendars:read`, which the search for calendars accepts from a tenant token; principals never
+# administer, so it is refused for them too. PLAN 2.6 / F0.10 do not say so in these words.
+# ---------------------------------------------------------------------------------------------------------------
+
+[[admin_actor]]
+actor = ["anonymous", "suspended_user"]
+rule = "unauthenticated"
+note = "no credential, or the credentials of a suspended principal"
+
+[[admin_actor]]
+actor = [
+  "owner", "group_member", "sharee_read", "sharee_read_write", "grantee_via_group", "pending_sharee", "declined_sharee",
+  "other_user", "service_principal", "service_grantee", "service_writer",
+]
+rule = "refused"
+note = "principals never administer anything, whatever their scopes"
+
+[[admin_actor]]
+actor = ["other_tenant_user", "other_tenant_token"]
+rule = "other_tenant"
+note = "everything of this tenant is invisible to them"
+
+[[admin_actor]]
+actor = ["tenant_token", "system_token"]
+rule = "by_scope"
+note = "a tenant token administers its tenant within its scopes; a system token carries `system:tenants` only"
+
+# ---------------------------------------------------------------------------------------------------------------
+# The scopes each kind of API token may carry (PLAN 2.6): the tokens of the matrices are made from these lists, and a test
+# compares them with `davhaven_domain::Scope::allowed_for`.
+# ---------------------------------------------------------------------------------------------------------------
+
+[[token_scopes]]
+kind = "tenant"
+scopes = [
+  "principals:read", "principals:write", "credentials:write", "calendars:read", "calendars:write", "events:read",
+  "events:write", "webhooks:manage", "providers:manage", "outbox:manage", "audit:read", "itip:inbound",
+]
+
+[[token_scopes]]
+kind = "system"
+scopes = ["system:tenants"]
+
+[[token_scopes]]
+kind = "principal"
+scopes = ["calendars:read", "calendars:write", "events:read", "events:write", "mcp:read", "mcp:write", "mcp:schedule_external"]
+
+# ---------------------------------------------------------------------------------------------------------------
+# Operations that a service does not offer yet. Like a `[[known_issue]]` the row is checked against what the server does
+# today: a caller that reaches the service is answered 501 (and every other caller is judged by the rules above), a new 501
+# anywhere else fails, and an operation that stops answering 501 makes the row stale, so it has to be removed.
+#
+# There is no row at present: the last ones, the providers and external accounts, went when their service was implemented, and
+# those four operations are judged by the rules above like every other one.
+# ---------------------------------------------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------------------------------------------
+# Credentials (PLAN 2.6, 3.2): which surface takes which kind of credential, and what a state does to it. A credential that
+# its surface does not take (an app password on the API, a token on DAV) is refused whatever its state. Refused means 401 on
+# DAV, the API and MCP, and the 404 of an unknown token on the pages. Accepted means that the credential authenticates: what
+# it may do is the business of the permission matrix.
+# ---------------------------------------------------------------------------------------------------------------
+
+[[credential_surface]]
+surface = "dav"
+accepts = ["app_password"]
+
+[[credential_surface]]
+surface = "api"
+accepts = ["principal_token", "tenant_token", "system_token"]
+
+# MCP authenticates every API token and gives the tokens that act as nobody (tenant, system) no tools: every call is not found.
+[[credential_surface]]
+surface = "mcp"
+accepts = ["principal_token", "tenant_token", "system_token"]
+
+[[credential_surface]]
+surface = "feed"
+accepts = ["feed_token"]
+
+[[credential_surface]]
+surface = "rsvp"
+accepts = ["rsvp_token"]
+
+[[credential_state]]
+state = "valid"
+kind = "*"
+result = "accepted"
+
+[[credential_state]]
+state = ["wrong_secret", "unknown_prefix", "malformed"]
+kind = "*"
+result = "refused"
+
+[[credential_state]]
+state = "revoked"
+kind = ["app_password", "principal_token", "tenant_token", "feed_token", "rsvp_token"]
+result = "refused"
+
+[[credential_state]]
+state = "revoked"
+kind = "system_token"
+result = "n/a"
+note = "a system token is revoked with an operator command that the harness does not run"
+
+[[credential_state]]
+state = "expired"
+kind = ["principal_token", "tenant_token", "rsvp_token"]
+result = "refused"
+note = "an RSVP link expires seven days after the last instance of its event; tokens carry an expiry"
+
+[[credential_state]]
+state = "expired"
+kind = ["app_password", "system_token", "feed_token"]
+result = "n/a"
+note = "these kinds do not expire"
+
+[[credential_state]]
+state = "principal_suspended"
+kind = ["app_password", "principal_token", "feed_token"]
+result = "refused"
+
+[[credential_state]]
+state = "principal_suspended"
+kind = ["tenant_token", "system_token"]
+result = "accepted"
+note = "they act as no principal"
+
+[[credential_state]]
+state = "principal_suspended"
+kind = "rsvp_token"
+result = "n/a"
+note = "a guest is nobody's principal"
+
+[[credential_state]]
+state = "tenant_suspended"
+kind = ["app_password", "principal_token", "tenant_token", "feed_token"]
+result = "refused"
+
+[[credential_state]]
+state = "tenant_suspended"
+kind = "system_token"
+result = "n/a"
+note = "a system token belongs to no tenant, and the harness does not suspend its own"
+
+[[credential_state]]
+state = "tenant_suspended"
+kind = "rsvp_token"
+result = "n/a"
+note = "the plan does not say what a page of a suspended tenant shows a guest"
+
+[[credential_state]]
+state = "cross_login"
+kind = "app_password"
+result = "refused"
+note = "the username must equal the login of the owner of the password"
+
+[[credential_state]]
+state = "cross_login"
+kind = ["principal_token", "tenant_token", "system_token", "feed_token", "rsvp_token"]
+result = "n/a"
+note = "only app passwords are presented with a login"
+
+[[credential_state]]
+state = "deleted_principal"
+kind = ["app_password", "principal_token", "feed_token"]
+result = "refused"
+note = "deleting a principal revokes its credentials at once"
+
+[[credential_state]]
+state = "deleted_principal"
+kind = ["tenant_token", "system_token", "rsvp_token"]
+result = "n/a"
+note = "these credentials belong to no principal"
+
+[[credential_state]]
+state = "not_bearer"
+kind = ["principal_token", "tenant_token", "system_token"]
+result = "refused"
+note = "API tokens are accepted in the Bearer header only"
+
+[[credential_state]]
+state = "not_bearer"
+kind = ["app_password", "feed_token", "rsvp_token"]
+result = "n/a"
+note = "only API tokens are presented in a header"

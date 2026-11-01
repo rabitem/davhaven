@@ -1,0 +1,83 @@
+schema_version: 1
+name: thunderbird-crud
+description: >
+  Thunderbird stores a task (VTODO with a due date, priority and the X-MOZ properties), asks for the open tasks with
+  the negated text match it uses, completes the task and stores it again, and deletes it.
+client: thunderbird
+feature: crud
+origin: synthetic
+provenance: >
+  Body is testdata/corpus/thunderbird-todo.ics and the query is testdata/dav/thunderbird-calendar-query-todos.xml,
+  reconstructions of what Thunderbird (Lightning) writes and asks (see testdata/corpus/README.md).
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the task is stored
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/tb-todo.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/thunderbird-todo.ics
+    capture:
+      etag: { header: ETag }
+    expect:
+      status: 201
+
+  - name: the query for open tasks finds it
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "text/xml; charset=utf-8" }
+      body_file: dav/thunderbird-calendar-query-todos.xml
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/tb-todo.ics": 200
+
+  - name: the task is completed and stored again
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/tb-todo.ics"
+      headers: { If-Match: "{{etag}}", Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+        VERSION:2.0
+        BEGIN:VTODO
+        CREATED:20270105T120000Z
+        LAST-MODIFIED:20270107T090000Z
+        DTSTAMP:20270107T090000Z
+        UID:8f7b6a9c-2f1e-4d4c-9b5a-0c1d2e3f4a5b
+        SUMMARY:Steuererklaerung abgeben
+        STATUS:COMPLETED
+        PERCENT-COMPLETE:100
+        COMPLETED:20270107T090000Z
+        END:VTODO
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the completed task is no longer an open task
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "text/xml; charset=utf-8" }
+      body_file: dav/thunderbird-calendar-query-todos.xml
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 0 }
+
+  - name: the task is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/tb-todo.ics"
+    expect:
+      status: 204

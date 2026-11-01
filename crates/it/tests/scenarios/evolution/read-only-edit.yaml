@@ -1,0 +1,56 @@
+schema_version: 1
+name: evolution-read-only-edit
+description: >
+  Evolution opens a calendar of the organization (a group calendar shared with a read-only member is not a case here: this
+  is the managed calendar that members may only read): the calendar is shown read-only, and creating, changing and
+  deleting events is refused with 403.
+client: evolution
+feature: read-only-edit
+origin: synthetic
+provenance: >
+  The refused writes of Evolution's CalDAV backend on a calendar without write privilege; the managed calendar
+  `holidays` of the fixture world is read-only for members over DAV (PLAN 2.6).
+actors:
+  mia: group_member
+variables:
+  holidays: /dav/calendars/{{tenant}}/mia/holidays
+steps:
+  - name: the calendar lists its privileges
+    as: mia
+    request:
+      method: PROPFIND
+      path: "{{holidays}}/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/evolution-propfind-calendar.xml
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}read" }
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}write-content", count: 0 }
+
+  - name: creating an event is refused
+    as: mia
+    request:
+      method: PUT
+      path: "{{holidays}}/evo-new.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar" }
+      body_file: corpus/evolution-event-registry-tzid.ics
+    expect:
+      status: 403
+
+  - name: deleting an event is refused
+    as: mia
+    request:
+      method: DELETE
+      path: "{{holidays}}/managed-event@acme.example.ics"
+    expect:
+      status: 403
+
+  - name: the event of the calendar is still there
+    as: mia
+    request:
+      method: GET
+      path: "{{holidays}}/managed-event@acme.example.ics"
+    expect:
+      status: 200
+      body_contains: ["SUMMARY:Managed event"]

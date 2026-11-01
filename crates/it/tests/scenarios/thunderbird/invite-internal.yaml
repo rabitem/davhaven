@@ -1,0 +1,67 @@
+schema_version: 1
+name: thunderbird-invite-internal
+description: >
+  Thunderbird saves a meeting with an attendee from the same tenant: the server schedules it (the attendee gets the
+  invitation), and Thunderbird reads the Schedule-Tag and the delivery state of the attendee from the answer to its
+  next refresh.
+client: thunderbird
+feature: invite-internal
+origin: synthetic
+provenance: >
+  The organizer's object as Thunderbird writes it (Mozilla PRODID, X-MOZ-GENERATION, a VTIMEZONE, ORGANIZER with
+  CN and ATTENDEE with ROLE and RSVP); written for this scenario after the structure of
+  testdata/corpus/thunderbird-event-monthly.ics.
+actors:
+  olivia: owner
+  otto: other_user
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the meeting is saved
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/tb-invite.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+        VERSION:2.0
+        BEGIN:VEVENT
+        CREATED:20270105T130000Z
+        LAST-MODIFIED:20270105T130500Z
+        DTSTAMP:20270105T130500Z
+        UID:tb-invite-1@example.org
+        SUMMARY:Retrospektive
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=Otto Other;PARTSTAT=NEEDS-ACTION;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:otto@{{login_domain}}
+        DTSTART:20270323T090000Z
+        DTEND:20270323T100000Z
+        X-MOZ-GENERATION:1
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the next refresh shows the delivery state of the attendee
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/tb-invite.ics"
+    expect:
+      status: 200
+      ical_contains: ["SCHEDULE-STATUS=1.2", "mailto:otto@{{login_domain}}"]
+
+  - name: the colleague has the meeting in the calendar
+    as: otto
+    request:
+      method: REPORT
+      path: /dav/calendars/{{tenant}}/otto/personal/
+      headers: { Depth: "1", Content-Type: "text/xml; charset=utf-8" }
+      body_file: dav/thunderbird-calendar-query-events.xml
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 1 }

@@ -1,0 +1,84 @@
+schema_version: 1
+name: evolution-invite-external
+description: >
+  Evolution uploads a meeting with a guest outside the tenant: the write succeeds, the organizer's copy records that
+  the invitation was queued or mailed (iMIP), nothing is written for the guest on this server, and deleting the
+  meeting cancels it.
+client: evolution
+feature: invite-external
+origin: synthetic
+provenance: >
+  The organizer's object as Evolution writes a meeting with an attendee whose address belongs to no principal (PRODID
+  -//Ximian//NONSGML Evolution Calendar//EN); no capture of a deployed instance yet. The mail itself is covered by the
+  scheduling matrix.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the meeting with a guest is uploaded
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/evo-external.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar", User-Agent: "Evolution/3.52.4" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Ximian//NONSGML Evolution Calendar//EN
+        BEGIN:VEVENT
+        UID:evo-external-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270320T130000Z
+        DTEND:20270320T140000Z
+        SUMMARY:Kundentermin
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=A Guest:mailto:guest@example.net
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the organizer's copy records what happened to the invitation
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/evo-external.ics"
+    expect:
+      status: 200
+      ical_contains: ["SCHEDULE-STATUS=1.", ":mailto:guest@example.net"]
+      ical_excludes: ["SCHEDULE-STATUS=5."]
+
+  - name: a second upload with a changed time keeps the state of the guest
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/evo-external.ics"
+      headers: { Content-Type: "text/calendar", User-Agent: "Evolution/3.52.4" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Ximian//NONSGML Evolution Calendar//EN
+        BEGIN:VEVENT
+        UID:evo-external-1@example.org
+        DTSTAMP:20270101T000000Z
+        SEQUENCE:1
+        DTSTART:20270320T140000Z
+        DTEND:20270320T150000Z
+        SUMMARY:Kundentermin
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=A Guest:mailto:guest@example.net
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the meeting is cancelled by deleting it
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/evo-external.ics"
+    expect:
+      status: 204

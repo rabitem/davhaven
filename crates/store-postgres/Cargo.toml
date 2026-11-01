@@ -1,0 +1,34 @@
+[package]
+name = "davhaven-store-postgres"
+description = "Davhaven PostgreSQL storage adapter with row-level security."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-domain.workspace = true
+davhaven-ports.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+futures.workspace = true
+humantime-serde.workspace = true
+schemars.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+davhaven-port-tests.workspace = true
+davhaven-ports = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "time"] }
+
+[lints]
+workspace = true

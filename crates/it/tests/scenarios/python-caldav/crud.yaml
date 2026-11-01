@@ -1,0 +1,168 @@
+schema_version: 1
+name: python-caldav-create-and-find-events
+description: >
+  The python `caldav` library creates a named calendar, saves two events (one built from text, one from raw bytes with a
+  folded long UID), finds them by listing, by UID and with a multiget, reads the raw bytes back, and deletes the calendar
+  with its events.
+client: python-caldav
+feature: crud
+origin: synthetic
+provenance: >
+  Ported from the functional tests of python-caldav (tests/test_caldav.py: testCreateDeleteCalendar,
+  testNamedCalendarUrlIsUsable, testCreateEvent, testFoldedLongUID, testRawDataRoundTrip, testMultiGet); the requests
+  are what the library sends for make_calendar, save_event, event_by_uid and calendar-multiget.
+actors:
+  olivia: owner
+variables:
+  home: /dav/calendars/{{tenant}}/olivia
+  cal: /dav/calendars/{{tenant}}/olivia/pycaldav
+steps:
+  - name: a calendar with a name is made (testCreateDeleteCalendar)
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{cal}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:mkcalendar xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:set><D:prop><D:displayname>Yep</D:displayname></D:prop></D:set>
+        </C:mkcalendar>
+    expect:
+      status: 201
+
+  - name: an event is saved (testCreateEvent)
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/20010712T182145Z-123401@example.com.ics"
+      headers: { Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Example Corp.//CalDAV Client//EN
+        BEGIN:VEVENT
+        UID:20010712T182145Z-123401@example.com
+        DTSTAMP:20060712T182145Z
+        DTSTART:20060714T170000Z
+        DTEND:20060715T040000Z
+        SUMMARY:Bastille Day Party
+        END:VEVENT
+        END:VCALENDAR
+    capture:
+      etag: { header: ETag }
+    expect:
+      status: 201
+
+  - name: a second event with a long UID that has to be folded is saved (testFoldedLongUID)
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/folded.ics"
+      headers: { Content-Type: "text/calendar; charset=utf-8" }
+      body: "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Example Corp.//CalDAV Client//EN\r\nBEGIN:VEVENT\r\nUID:0123456789012345678901234567890123456789012345678\r\n 9012345678901234567890123456789@example.com\r\nDTSTAMP:20060712T182145Z\r\nDTSTART:20060716T170000Z\r\nDTEND:20060716T180000Z\r\nSUMMARY:Folded UID\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    expect:
+      status: 201
+
+  - name: the calendar lists both events
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/><C:calendar-data/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"/></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 2 }
+
+  - name: an event is found by its UID (testObjectByUID)
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:prop-filter name="UID"><C:text-match collation="i;octet">20010712T182145Z-123401@example.com</C:text-match></C:prop-filter>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/20010712T182145Z-123401@example.com.ics": 200
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 1 }
+
+  - name: a UID that does not exist finds nothing
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:prop-filter name="UID"><C:text-match collation="i;octet">no-such-uid</C:text-match></C:prop-filter>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 0 }
+
+  - name: the raw data comes back as it was sent (testRawDataRoundTrip)
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/20010712T182145Z-123401@example.com.ics"
+    expect:
+      status: 200
+      headers:
+        etag: "{{etag}}"
+      ical_contains: ["SUMMARY:Bastille Day Party", "UID:20010712T182145Z-123401@example.com"]
+
+  - name: both events are fetched with one multiget (testMultiGet)
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-multiget xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/><C:calendar-data/></D:prop>
+          <D:href>{{cal}}/20010712T182145Z-123401@example.com.ics</D:href>
+          <D:href>{{cal}}/folded.ics</D:href>
+        </C:calendar-multiget>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/20010712T182145Z-123401@example.com.ics": 200
+        "{{cal}}/folded.ics": 200
+
+  - name: the calendar is deleted with its events
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/"
+    expect:
+      status: 204
+
+  - name: the calendar is gone
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/20010712T182145Z-123401@example.com.ics"
+    expect:
+      status: 404

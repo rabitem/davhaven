@@ -1,0 +1,61 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('48d31887-5fad-4d73-a9f5-3c356e68a038')/calendars('AAMkADDEFAULT%3D')/calendarView(id,changeKey,subject,body,start,end,isAllDay,isCancelled,showAs,sensitivity,location,createdDateTime,lastModifiedDateTime)",
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendars/AAMkADDEFAULT=/calendarView?startDateTime=2026-10-03T00%3A00%3A00Z&endDateTime=2028-01-01T00%3A00%3A00Z&%24top=50&%24select=id%2CchangeKey%2Csubject&%24skiptoken=PAGE2",
+  "value": [
+    {
+      "@odata.etag": "W/\"CQAAABYAAADFixtureChangeKeyAAAA\"",
+      "id": "AAMkADSINGLE=",
+      "createdDateTime": "2026-09-01T08:00:00.1234567Z",
+      "lastModifiedDateTime": "2026-10-20T09:30:00.0000000Z",
+      "changeKey": "CQAAABYAAADFixtureChangeKeyAAAA",
+      "subject": "Kick-off, Q4",
+      "bodyPreview": "Agenda: 1. Plan 2. Budget",
+      "body": {
+        "contentType": "text",
+        "content": "Agenda:\r\n1. Plan\r\n2. Budget"
+      },
+      "start": {
+        "dateTime": "2027-01-05T10:00:00.0000000",
+        "timeZone": "W. Europe Standard Time"
+      },
+      "end": {
+        "dateTime": "2027-01-05T11:00:00.0000000",
+        "timeZone": "W. Europe Standard Time"
+      },
+      "location": {
+        "displayName": "Room 4"
+      },
+      "isAllDay": false,
+      "isCancelled": false,
+      "showAs": "busy",
+      "sensitivity": "normal"
+    },
+    {
+      "@odata.etag": "W/\"CQAAABYAAADFixtureChangeKeyBBBB\"",
+      "id": "AAMkADHOLIDAY=",
+      "createdDateTime": "2026-09-02T08:00:00.0000000Z",
+      "lastModifiedDateTime": "2026-09-02T08:00:00.0000000Z",
+      "changeKey": "CQAAABYAAADFixtureChangeKeyBBBB",
+      "subject": "Company holiday",
+      "body": {
+        "contentType": "text",
+        "content": ""
+      },
+      "start": {
+        "dateTime": "2027-01-18T00:00:00.0000000",
+        "timeZone": "W. Europe Standard Time"
+      },
+      "end": {
+        "dateTime": "2027-01-20T00:00:00.0000000",
+        "timeZone": "W. Europe Standard Time"
+      },
+      "location": {
+        "displayName": ""
+      },
+      "isAllDay": true,
+      "isCancelled": false,
+      "showAs": "free",
+      "sensitivity": "normal"
+    }
+  ]
+}

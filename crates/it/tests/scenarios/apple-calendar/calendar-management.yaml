@@ -1,0 +1,90 @@
+schema_version: 1
+name: apple-calendar-calendar-management
+description: >
+  Calendar on macOS creates a calendar with MKCALENDAR (colour, order, component set, time zone), changes its
+  colour and enabled state with PROPPATCH, reads the properties back and deletes the calendar.
+client: apple-calendar
+feature: crud
+origin: synthetic
+provenance: >
+  Bodies as Calendar on macOS and iOS send them (testdata/dav/macos-mkcalendar.xml, macos-proppatch-color.xml),
+  reconstructed from public traces; no capture of a deployed instance yet.
+actors:
+  olivia: owner
+variables:
+  home: /dav/calendars/{{tenant}}/olivia
+steps:
+  - name: a calendar is created
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{home}}/apple-holidays/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/macos-mkcalendar.xml
+    expect:
+      status: 201
+
+  - name: its properties are what the client set
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}/apple-holidays/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:propfind xmlns:A="DAV:" xmlns:B="urn:ietf:params:xml:ns:caldav" xmlns:D="http://apple.com/ns/ical/">
+          <A:prop><A:displayname/><D:calendar-color/><D:calendar-order/><B:supported-calendar-component-set/></A:prop>
+        </A:propfind>
+    expect:
+      status: 207
+      properties:
+        - { href: "{{home}}/apple-holidays/", name: "{DAV:}displayname", value: "Holidays" }
+        - { href: "{{home}}/apple-holidays/", name: "{http://apple.com/ns/ical/}calendar-color", value: "#1BADF8FF" }
+        - { href: "{{home}}/apple-holidays/", name: "{http://apple.com/ns/ical/}calendar-order", value: "4" }
+
+  - name: the colour and the name are changed and the order is removed
+    as: olivia
+    request:
+      method: PROPPATCH
+      path: "{{home}}/apple-holidays/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/macos-proppatch-color.xml
+    expect:
+      status: 207
+      statuses:
+        "{{home}}/apple-holidays/": 200
+
+  - name: the changes are visible
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}/apple-holidays/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:propfind xmlns:A="DAV:" xmlns:D="http://apple.com/ns/ical/">
+          <A:prop><A:displayname/><D:calendar-color/></A:prop>
+        </A:propfind>
+    expect:
+      status: 207
+      properties:
+        - { href: "{{home}}/apple-holidays/", name: "{DAV:}displayname", value: "Team work" }
+        - { href: "{{home}}/apple-holidays/", name: "{http://apple.com/ns/ical/}calendar-color", value: "#44A703FF" }
+
+  - name: the calendar is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{home}}/apple-holidays/"
+    expect:
+      status: 204
+
+  - name: the calendar is gone
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}/apple-holidays/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/evolution-propfind-calendar.xml
+    expect:
+      status: 404

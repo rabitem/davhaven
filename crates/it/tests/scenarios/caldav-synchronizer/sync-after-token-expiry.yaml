@@ -1,0 +1,106 @@
+schema_version: 1
+name: caldav-synchronizer-sync-after-token-expiry
+description: >
+  CalDav Synchronizer compares the CTag of the server calendar with the one it stored, and when it differs it lists the
+  entity tags and downloads what changed. After a restore of the server (all sync tokens and CTags have a new epoch) the
+  stored CTag is unknown, which means a full listing and not an error.
+client: caldav-synchronizer
+feature: sync-after-token-expiry
+origin: synthetic
+provenance: >
+  The poll of CalDav Synchronizer (CTag, then an ETag listing and multiget); the behaviour after a restore is PLAN 2.7
+  (`admin bump-sync-epoch`): a token or CTag of another epoch is simply different, and sync-collection refuses it.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/cs-sync
+steps:
+  - name: a calendar with an event is created for the scenario
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{cal}}/"
+    expect:
+      status: 201
+
+  - name: the first poll reads the CTag
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "0", Content-Type: "text/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/"><D:prop><CS:getctag/></D:prop></D:propfind>
+    capture:
+      ctag: { xpath: "//{http://calendarserver.org/ns/}getctag" }
+    expect:
+      status: 207
+
+  - name: an appointment is created in Outlook and uploaded
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/one.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/caldav-synchronizer-windows-tzid.ics
+    expect:
+      status: 201
+
+  - name: the CTag differs, so the entity tags are listed
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "text/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/"><D:prop><D:getetag/><CS:getctag/></D:prop></D:propfind>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/one.ics": 200
+      xpath:
+        - { path: "//{http://calendarserver.org/ns/}getctag", not_equals: "{{ctag}}" }
+
+  - name: a sync token from before a restore (another epoch) is refused with the precondition
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "text/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token>{{ctag}}</D:sync-token>
+          <D:sync-level>1</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    expect:
+      status: [207, 403]
+
+  - name: a full listing without a token always works
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Content-Type: "text/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <D:sync-collection xmlns:D="DAV:">
+          <D:sync-token/>
+          <D:sync-level>1</D:sync-level>
+          <D:prop><D:getetag/></D:prop>
+        </D:sync-collection>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/one.ics": 200
+
+  - name: the calendar is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/"
+    expect:
+      status: 204

@@ -1,0 +1,39 @@
+schema_version: 1
+name: ios-calendar-account-setup
+description: >
+  Calendar on iOS adds an account by server name and user name: it asks the entry point who the user is, then reads the
+  principal and the home like macOS does, and finally lists the calendars with their ordering and colour.
+client: ios-calendar
+feature: account-setup
+origin: synthetic
+provenance: >
+  The discovery of Calendar on iOS 18 (principal properties and home listing as in testdata/dav/macos-propfind-*.xml,
+  which iOS shares with macOS); no capture of a deployed instance yet.
+actors:
+  olivia: owner
+steps:
+  - name: the entry point names the principal of the login
+    as: olivia
+    request:
+      method: PROPFIND
+      path: /dav/
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body_file: dav/macos-propfind-entry.xml
+    expect:
+      status: 207
+      xpath:
+        - path: "//{DAV:}current-user-principal/{DAV:}href"
+          equals: "/dav/principals/{{tenant}}/olivia/"
+
+  - name: the principal names the home
+    as: olivia
+    request:
+      method: PROPFIND
+      path: /dav/principals/{{tenant}}/olivia/
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      body_file: dav/macos-propfind-principal.xml
+    expect:
+      status: 207
+      xpath:
+        - path: "//{urn:ietf:params:xml:ns:caldav}calendar-home-set/{DAV:}href"
+          equals: "/dav/calendars/{{tenant}}/olivia/"

@@ -1,0 +1,5 @@
+Requests and expectations in this directory follow the structure of tests of the CalendarServer test suite
+(ccs-caldavtester, https://github.com/apple/ccs-caldavtester, scripts/tests/CalDAV), which is licensed under the Apache
+License, Version 2.0, Copyright (c) Apple Inc. The scenarios are written anew for Davhaven (other fixtures, other
+object bodies, YAML instead of the XML test scripts); the script that a scenario follows is named in its provenance.
+This notice is kept as the license of the suite asks for.

@@ -1,0 +1,96 @@
+schema_version: 1
+name: apple-calendar-read-only-edit
+description: >
+  A colleague who was given read access to a shared calendar edits it in Calendar on macOS: reading works, writing
+  and deleting are refused with 403 and DAV:need-privileges, the calendar says what the user may do
+  (current-user-privilege-set), and the colour (a per-user property of the binding) can still be changed.
+client: apple-calendar
+feature: read-only-edit
+origin: synthetic
+provenance: >
+  The refusals as Calendar on macOS expects them (a 403 with the precondition element, so that it greys out the
+  calendar after reading current-user-privilege-set); the read-only share is rita's accepted grant of the fixture world.
+actors:
+  rita: sharee_read
+variables:
+  shared: /dav/calendars/{{tenant}}/rita/projects
+steps:
+  - name: the calendar says that the user may not write
+    as: rita
+    request:
+      method: PROPFIND
+      path: "{{shared}}/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:propfind xmlns:A="DAV:"><A:prop><A:current-user-privilege-set/></A:prop></A:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}read" }
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}write-content", count: 0 }
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}bind", count: 0 }
+
+  - name: the events can be read
+    as: rita
+    request:
+      method: GET
+      path: "{{shared}}/shared-event@acme.example.ics"
+    expect:
+      status: 200
+      body_contains: ["SUMMARY:Shared event"]
+
+  - name: a new event is refused
+    as: rita
+    request:
+      method: PUT
+      path: "{{shared}}/apple-readonly-1.ics"
+      headers: { If-None-Match: "*" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//macOS 15.0//EN
+        BEGIN:VEVENT
+        UID:apple-readonly-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270321T090000Z
+        DTEND:20270321T100000Z
+        SUMMARY:Not allowed
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 403
+      body_contains: ["need-privileges"]
+
+  - name: deleting an event is refused
+    as: rita
+    request:
+      method: DELETE
+      path: "{{shared}}/shared-event@acme.example.ics"
+    expect:
+      status: 403
+      body_contains: ["need-privileges"]
+
+  - name: the colour of the calendar can be changed
+    as: rita
+    request:
+      method: PROPPATCH
+      path: "{{shared}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:propertyupdate xmlns:A="DAV:"><A:set><A:prop>
+          <D:calendar-color xmlns:D="http://apple.com/ns/ical/">#FF2D55FF</D:calendar-color>
+        </A:prop></A:set></A:propertyupdate>
+    expect:
+      status: 207
+      statuses:
+        "{{shared}}/": 200
+
+  - name: the event is still there
+    as: rita
+    request:
+      method: GET
+      path: "{{shared}}/shared-event@acme.example.ics"
+    expect:
+      status: 200

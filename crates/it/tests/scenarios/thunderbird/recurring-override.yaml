@@ -1,0 +1,65 @@
+schema_version: 1
+name: thunderbird-recurring-override
+description: >
+  Thunderbird stores a monthly series on the first and third Tuesday with a count and asks for the events of the first
+  quarter with the time-range query it uses for its month view: the series is found, it is returned once as the
+  resource (Thunderbird expands on its side).
+client: thunderbird
+feature: recurring-override
+origin: synthetic
+provenance: >
+  Series is testdata/corpus/thunderbird-event-monthly.ics and the query is
+  testdata/dav/thunderbird-calendar-query-events.xml (reconstructions, see testdata/corpus/README.md).
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the series is stored
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/tb-monthly.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/thunderbird-event-monthly.ics
+    expect:
+      status: 201
+
+  - name: the query for the quarter finds the series
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "text/xml; charset=utf-8" }
+      body_file: dav/thunderbird-calendar-query-events.xml
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/tb-monthly.ics": 200
+
+  - name: a quarter without an instance finds nothing
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "text/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+          <D:prop><D:getetag/></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20280101T000000Z" end="20280401T000000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 0 }
+
+  - name: the series is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/tb-monthly.ics"
+    expect:
+      status: 204

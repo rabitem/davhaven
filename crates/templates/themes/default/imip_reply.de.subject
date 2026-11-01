@@ -1,0 +1,1 @@
+{% if reply.partstat == "ACCEPTED" %}Zugesagt{% elif reply.partstat == "DECLINED" %}Abgelehnt{% elif reply.partstat == "TENTATIVE" %}Vorläufig zugesagt{% else %}Antwort{% endif %}: {{ event.summary }}

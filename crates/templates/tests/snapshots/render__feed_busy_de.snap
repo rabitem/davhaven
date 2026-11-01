@@ -1,0 +1,9 @@
+---
+source: crates/templates/tests/render.rs
+expression: show(&rendered)
+---
+subject: Beschäftigt
+
+--- html ---
+
+--- text ---

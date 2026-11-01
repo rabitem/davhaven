@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CS:notification xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/">
+  <CS:dtstamp>20270101T000500Z</CS:dtstamp>
+  <CS:invite-reply>
+    <D:href>mailto:ben@acme.example</D:href>
+    <CS:invite-accepted/>
+    <CS:hosturl><D:href>/dav/calendars/acme/anna/work/</D:href></CS:hosturl>
+    <CS:in-reply-to>7b2c4f10-4d2e-4f55-9a3e-0d3b2a6c1e11</CS:in-reply-to>
+    <CS:common-name>Ben Baker</CS:common-name>
+  </CS:invite-reply>
+</CS:notification>

@@ -1,0 +1,196 @@
+# Prometheus alerting rules for Davhaven (PLAN 2.17). Load them next to the scrape job of the ops listener:
+#
+#   scrape_configs:
+#     - job_name: davhaven
+#       static_configs:
+#         - targets: ["davhaven:9090"]        # the `ops` listener (server.listeners.ops.bind)
+#   rule_files:
+#     - davhaven-rules.yml
+#
+# The alerts assume the job is called `davhaven`; change the `job` matcher below when yours differs. Every alert links
+# to the section of docs/operations/runbook.md that says what to do. Thresholds are the defaults of a small
+# deployment (a few dozen mails a minute); adjust them to yours. The metric names are the ones the server exposes
+# (docs/operations/runbook.md, "Metrics"); a test in the server crate keeps this file and the dashboard in step with the
+# names the code registers.
+groups:
+  - name: davhaven.availability
+    rules:
+      - alert: DavhavenDown
+        expr: up{job="davhaven"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Davhaven {{ $labels.instance }} cannot be scraped"
+          description: "The ops listener of {{ $labels.instance }} has not answered for 5 minutes: the process is down or unreachable."
+          runbook: "docs/operations/runbook.md#davhavendown"
+
+      - alert: DavhavenWorkerStalled
+        expr: max by (instance, worker) (davhaven_worker_heartbeat_age_seconds{job="davhaven"}) > 900
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The {{ $labels.worker }} worker of {{ $labels.instance }} has made no progress for 15 minutes"
+          description: "/readyz reports the instance as not ready when a worker misses twice its interval. A worker that does not finish a pass is hung or panicking on every pass."
+          runbook: "docs/operations/runbook.md#davhavenworkerstalled"
+
+      - alert: DavhavenWorkerPanicking
+        expr: sum by (instance, worker) (rate(davhaven_worker_passes_total{job="davhaven", outcome="panicked"}[15m])) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Passes of the {{ $labels.worker }} worker of {{ $labels.instance }} keep panicking"
+          description: "A panic is a bug: the worker goes on with its next pass, but the one that panicked did nothing. Passes that merely report failed records (a webhook receiver that is down) are no panic; the outbox and retention alerts cover them."
+          runbook: "docs/operations/runbook.md#davhavenworkerpanicking"
+
+  - name: davhaven.http
+    rules:
+      - alert: DavhavenServerErrors
+        expr: |
+          sum by (surface) (rate(davhaven_http_requests_total{job="davhaven", status=~"5.."}[5m]))
+            / sum by (surface) (rate(davhaven_http_requests_total{job="davhaven"}[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "More than 5 % of the {{ $labels.surface }} requests fail with a 5xx status"
+          description: "Look at the problems behind the 5xx: a database that is away (503), an adapter that fails, or a bug (500, with the request id in the log)."
+          runbook: "docs/operations/runbook.md#davhavenservererrors"
+
+      - alert: DavhavenSlowRequests
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, surface) (rate(davhaven_http_request_duration_seconds_bucket{job="davhaven"}[5m]))) > 2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The 95th percentile of {{ $labels.surface }} requests is above 2 seconds"
+          description: "Requests are slow. Check the database (statement time, connections) and the port latencies on the dashboard."
+          runbook: "docs/operations/runbook.md#davhavenslowrequests"
+
+      - alert: DavhavenAuthFailures
+        expr: sum by (mechanism) (rate(davhaven_auth_failures_total{job="davhaven"}[10m])) > 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sustained authentication failures on {{ $labels.mechanism }}"
+          description: "More than one failed login a second for a quarter of an hour: a client with a revoked credential in a retry loop, or somebody guessing."
+          runbook: "docs/operations/runbook.md#davhavenauthfailures"
+
+  - name: davhaven.outbox
+    rules:
+      - alert: DavhavenOutboxBacklog
+        expr: max(davhaven_outbox_oldest_pending_age_seconds{job="davhaven"}) > 900
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The oldest outbox message has waited for more than 15 minutes"
+          description: "Mail, webhooks and invitations are delayed. Look for a relay that is down (mail circuit open), a receiver that is slow, or a dispatcher that does not run."
+          runbook: "docs/operations/runbook.md#davhavenoutboxbacklog"
+
+      - alert: DavhavenOutboxBacklogSevere
+        expr: max(davhaven_outbox_oldest_pending_age_seconds{job="davhaven"}) > 3600
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The oldest outbox message has waited for more than an hour"
+          description: "Nothing is being delivered. Check that a dispatcher runs (the outbox worker in /readyz) and that the database answers."
+          runbook: "docs/operations/runbook.md#davhavenoutboxbacklog"
+
+      - alert: DavhavenOutboxDeadLetters
+        expr: sum by (kind) (increase(davhaven_outbox_dead_total{job="davhaven"}[1h])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox messages of kind {{ $labels.kind }} were dead-lettered in the last hour"
+          description: "A message was given up after its attempts or its retry window. List them with GET /api/v1/tenants/{tenant}/outbox?status=dead, fix the cause and retry them."
+          runbook: "docs/operations/runbook.md#davhavenoutboxdeadletters"
+
+      - alert: DavhavenMailCircuitOpen
+        expr: max(davhaven_mail_circuit_open{job="davhaven"}) == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The mail circuit breaker is open: mail is held in the outbox"
+          description: "The relay failed mail.max_consecutive_failures times in a row. Mail waits and is sent when the breaker closes; check the relay and the SMTP settings."
+          runbook: "docs/operations/runbook.md#davhavenmailcircuitopen"
+
+      - alert: DavhavenMailFailures
+        expr: sum by (reason) (rate(davhaven_mail_failed_total{job="davhaven"}[15m])) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mail has been failing for half an hour ({{ $labels.reason }})"
+          description: "Sends fail for the named reason. Messages are retried with backoff until they die; see the outbox dead letters."
+          runbook: "docs/operations/runbook.md#davhavenmailfailures"
+
+  - name: davhaven.adapters
+    rules:
+      - alert: DavhavenPortFailures
+        expr: |
+          sum by (port, adapter) (rate(davhaven_port_calls_total{job="davhaven", outcome=~"unavailable|timeout|internal"}[5m]))
+            / sum by (port, adapter) (rate(davhaven_port_calls_total{job="davhaven"}[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "More than 10 % of the calls to {{ $labels.port }}/{{ $labels.adapter }} fail"
+          description: "The adapter reports unavailable, timeout or internal errors. For the database: connections, locks and statement timeouts; for mail: the relay."
+          runbook: "docs/operations/runbook.md#davhavenportfailures"
+
+      - alert: DavhavenRetentionFailing
+        expr: sum by (step) (increase(davhaven_retention_failed_total{job="davhaven"}[6h])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "The retention step {{ $labels.step }} failed in the last 6 hours"
+          description: "Expired data is not being removed. The log names the error; the worker tries again every pass."
+          runbook: "docs/operations/runbook.md#davhavenretentionfailing"
+
+  - name: davhaven.providers
+    rules:
+      - alert: DavhavenProviderSyncFailing
+        expr: |
+          sum by (provider) (increase(davhaven_provider_sync_total{job="davhaven", outcome="failed"}[2h]))
+            / sum by (provider) (increase(davhaven_provider_sync_total{job="davhaven", outcome=~"pulled|failed"}[2h])) > 0.5
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than half of the pulls of the {{ $labels.provider }} accounts fail"
+          description: "Accounts of this provider are not being synchronized. A provider that is down, throttling or has revoked the OAuth client fails every account at once; one person who removed the access fails only their account (see status and last_error of GET /api/v1/tenants/{tenant}/external-accounts)."
+          runbook: "docs/operations/runbook.md#davhavenprovidersyncfailing"
+
+  - name: davhaven.audit
+    rules:
+      - alert: DavhavenAuditPurgeNotRunning
+        expr: |
+          time() - davhaven_audit_oldest_event_timestamp_seconds{job="davhaven"}
+            > davhaven_audit_retention_seconds{job="davhaven"} + 35 * 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "The oldest audit event of {{ $labels.instance }} is more than 35 days older than the retention period"
+          description: "The job that purges the audit log (`davhaven admin purge-audit`, run by the scheduler of the deployment: the server never deletes audit events) has not run for longer than its schedule allows. Adjust the 35 days to the interval of your job."
+          runbook: "docs/operations/runbook.md#davhavenauditpurgenotrunning"
+
+  - name: davhaven.certificates
+    rules:
+      - alert: DavhavenProfileSigningCertificateExpiring
+        expr: davhaven_profile_signing_certificate_expiry_timestamp_seconds{job="davhaven"} - time() < 14 * 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "The certificate that signs Apple profiles on {{ $labels.instance }} ends within 14 days"
+          description: "The server signs with a certificate that is about to end (or has ended): a renewal does not arrive, or the files that carry it do not reach the server (a single-file mount, a Compose or Swarm secret or a `subPath` needs a restart)."
+          runbook: "docs/operations/runbook.md#davhavenprofilesigningcertificateexpiring"

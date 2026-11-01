@@ -1,0 +1,65 @@
+schema_version: 1
+name: davx5-read-only-edit
+description: >
+  DAVx5 syncs a calendar the user may only read (a managed calendar the user is a member of through a group): the
+  calendar is listed and its events are downloaded, and an upload of a local change is refused with 403, which DAVx5
+  shows as a sync error for the item while the calendar keeps working.
+client: davx5
+feature: read-only-edit
+origin: synthetic
+provenance: >
+  The managed calendar `holidays` of the fixture world is read-only for its members over DAV (PLAN 2.6); DAVx5 reads
+  current-user-privilege-set to mark a calendar read-only, which this scenario checks first.
+actors:
+  mia: group_member
+variables:
+  holidays: /dav/calendars/{{tenant}}/mia/holidays
+steps:
+  - name: the calendar is read-only for the member
+    as: mia
+    request:
+      method: PROPFIND
+      path: "{{holidays}}/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:propfind xmlns:A="DAV:"><A:prop><A:current-user-privilege-set/><A:displayname/></A:prop></A:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}read" }
+        - { path: "//{DAV:}current-user-privilege-set/{DAV:}privilege/{DAV:}write-content", count: 0 }
+
+  - name: the events are downloaded
+    as: mia
+    request:
+      method: REPORT
+      path: "{{holidays}}/"
+      headers: { Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/davx5-sync-collection.xml
+    expect:
+      status: 207
+      statuses:
+        "{{holidays}}/managed-event@acme.example.ics": 200
+
+  - name: an upload is refused
+    as: mia
+    request:
+      method: PUT
+      path: "{{holidays}}/local-change.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:+//IDN bitfire.at//DAVx5/4.4.2 ical4j/3.2.19
+        BEGIN:VEVENT
+        DTSTAMP:20270112T163000Z
+        UID:davx5-readonly-1@example.org
+        SUMMARY:Local change
+        DTSTART:20270303T170000Z
+        DTEND:20270303T180000Z
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 403
+      body_contains: ["need-privileges"]

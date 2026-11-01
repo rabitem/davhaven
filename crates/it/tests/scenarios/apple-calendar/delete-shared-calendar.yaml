@@ -1,0 +1,107 @@
+schema_version: 1
+name: apple-calendar-delete-shared-calendar
+description: >
+  A colleague deletes calendars that were shared with them in Calendar on macOS. The team calendar and the holiday calendar are
+  required by their grants (the group is granted both with the flag): the DELETE is refused with 403 and DAV:need-privileges naming
+  DAV:unbind, and the calendars stay in the home with their events. A calendar that was shared through an optional grant (the group
+  `viewers` is granted the shared calendar) is hidden for the colleague who deletes it, and only for them.
+client: apple-calendar
+feature: share
+origin: synthetic
+provenance: >
+  The DELETE that Calendar on macOS sends for a calendar the user removes from the sidebar (staging QA of 2026-10-27: the team
+  calendar and the course calendar vanished from the homes of colleagues who removed them, and nothing brought them back). The
+  grants are the ones of the fixture world: `team` holds required grants, `viewers` an optional one.
+actors:
+  mia: group_member
+  gary: grantee_via_group
+  rita: sharee_read
+variables:
+  mia_home: /dav/calendars/{{tenant}}/mia
+  gary_home: /dav/calendars/{{tenant}}/gary
+  rita_home: /dav/calendars/{{tenant}}/rita
+steps:
+  - name: the home lists the group's calendars
+    as: mia
+    request:
+      method: PROPFIND
+      path: "{{mia_home}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/macos-propfind-home.xml
+    expect:
+      status: 207
+      statuses:
+        "{{mia_home}}/team-calendar/": 200
+        "{{mia_home}}/holidays/": 200
+
+  - name: deleting the team calendar is refused
+    as: mia
+    request:
+      method: DELETE
+      path: "{{mia_home}}/team-calendar/"
+    expect:
+      status: 403
+      xpath:
+        - { path: "//{DAV:}need-privileges/{DAV:}resource/{DAV:}privilege/{DAV:}unbind" }
+        - { path: "//{DAV:}need-privileges/{DAV:}resource/{DAV:}href", equals: "{{mia_home}}/" }
+
+  - name: deleting the holiday calendar of the group's grant is refused
+    as: mia
+    request:
+      method: DELETE
+      path: "{{mia_home}}/holidays/"
+    expect:
+      status: 403
+      xpath:
+        - { path: "//{DAV:}need-privileges/{DAV:}resource/{DAV:}privilege/{DAV:}unbind" }
+        - { path: "//{DAV:}need-privileges/{DAV:}resource/{DAV:}href", equals: "{{mia_home}}/" }
+
+  - name: both calendars are still in the home
+    as: mia
+    request:
+      method: PROPFIND
+      path: "{{mia_home}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/macos-propfind-home.xml
+    expect:
+      status: 207
+      statuses:
+        "{{mia_home}}/team-calendar/": 200
+        "{{mia_home}}/holidays/": 200
+
+  - name: and their events can still be read
+    as: mia
+    request:
+      method: GET
+      path: "{{mia_home}}/team-calendar/group-event@acme.example.ics"
+    expect:
+      status: 200
+      body_contains: ["SUMMARY:Group event"]
+
+  - name: a calendar of an optional grant is deleted
+    as: gary
+    request:
+      method: DELETE
+      path: "{{gary_home}}/projects/"
+    expect:
+      status: 204
+
+  - name: it is gone from the home of the colleague who deleted it
+    as: gary
+    request:
+      method: PROPFIND
+      path: "{{gary_home}}/projects/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/evolution-propfind-calendar.xml
+    expect:
+      status: 404
+
+  - name: but not from the home of somebody else who has it
+    as: rita
+    request:
+      method: PROPFIND
+      path: "{{rita_home}}/projects/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/evolution-propfind-calendar.xml
+    expect:
+      status: 207

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<propfind xmlns="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/" xmlns:I="http://apple.com/ns/ical/">
+  <prop>
+    <resourcetype/>
+    <getcontenttype/>
+    <displayname/>
+    <CS:getctag/>
+    <C:supported-calendar-component-set/>
+    <I:calendar-color/>
+    <current-user-privilege-set/>
+    <owner/>
+  </prop>
+</propfind>

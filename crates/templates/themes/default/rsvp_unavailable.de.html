@@ -1,0 +1,13 @@
+{% extends "_page.html" %}
+{% block title %}{% if status == 429 %}Bitte warten{% elif status >= 500 %}Nicht verfügbar{% elif status == 404 or status == 410 %}Link nicht gültig{% else %}Anfrage abgelehnt{% endif %}{% endblock %}
+{% block content %}
+{% if status == 429 %}<h1>Zu viele Anfragen</h1>
+<p>Bitte warten Sie einen Moment und versuchen Sie es dann erneut.</p>
+{% elif status >= 500 %}<h1>Vorübergehend nicht verfügbar</h1>
+<p>Der Dienst kann gerade nicht antworten. Bitte versuchen Sie es später erneut.</p>
+{% elif status == 404 or status == 410 %}<h1>Dieser Link ist nicht gültig</h1>
+<p>Der Link ist unbekannt, abgelaufen oder wurde zurückgezogen, zum Beispiel weil der Termin abgesagt oder gelöscht wurde oder weil ein Abonnement-Link ersetzt wurde.</p>
+<p>Wenn Sie auf eine Einladung antworten möchten, bitten Sie den Organisator, Sie erneut einzuladen.</p>
+{% else %}<h1>Die Anfrage konnte nicht verarbeitet werden</h1>
+<p>Bitte gehen Sie zur vorherigen Seite zurück und versuchen Sie es erneut.</p>
+{% endif %}{% endblock %}

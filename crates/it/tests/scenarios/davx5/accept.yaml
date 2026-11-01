@@ -1,0 +1,125 @@
+schema_version: 1
+name: davx5-accept
+description: >
+  A colleague accepts an invitation in DAVx5: the client finds the copy, writes it back with PARTSTAT=ACCEPTED with
+  the entity tag and the Schedule-Tag it stored (If-Match and If-Schedule-Tag-Match), the write is answered without a
+  conflict and the organizer's copy shows the answer. A second write with the old entity tag is refused.
+client: davx5
+feature: accept
+origin: synthetic
+provenance: >
+  The attendee's write as DAVx5 makes it when the user answers (whole object, changed PARTSTAT, PRODID +//IDN
+  bitfire.at//DAVx5/4.4.2 ical4j/3.2.19); the organizer's write is the one of davx5-invite-internal.
+actors:
+  olivia: owner
+  otto: other_user
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the organizer invites the colleague
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/davx5-accept.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar;charset=utf-8", User-Agent: "DAVx5/4.4.2-ose (dav4jvm; okhttp/4.12.0)" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:+//IDN bitfire.at//DAVx5/4.4.2 ical4j/3.2.19
+        BEGIN:VEVENT
+        UID:davx5-accept-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270312T090000Z
+        DTEND:20270312T100000Z
+        SUMMARY:Abstimmung
+        ORGANIZER:mailto:olivia@{{login_domain}}
+        ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=Otto Other:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the colleague's next sync downloads the new copy
+    as: otto
+    request:
+      method: REPORT
+      path: /dav/calendars/{{tenant}}/otto/personal/
+      headers: { Content-Type: "application/xml; charset=utf-8", User-Agent: "DAVx5/4.4.2-ose (dav4jvm; okhttp/4.12.0)" }
+      body_file: dav/davx5-sync-collection.xml
+    capture:
+      copy: { xpath: "/{DAV:}multistatus/{DAV:}response/{DAV:}href" }
+    expect:
+      status: 207
+      xpath:
+        - { path: "/{DAV:}multistatus/{DAV:}response", count: 1 }
+
+  - name: the client reads the copy and keeps its tags
+    as: otto
+    request:
+      method: GET
+      path: "{{copy}}"
+    capture:
+      etag: { header: ETag }
+      tag: { header: Schedule-Tag }
+    expect:
+      status: 200
+      headers:
+        schedule-tag: {}
+        etag: {}
+      ical_contains: ["PARTSTAT=NEEDS-ACTION"]
+
+  - name: the colleague accepts
+    as: otto
+    request:
+      method: PUT
+      path: "{{copy}}"
+      headers: { If-Match: "{{etag}}", If-Schedule-Tag-Match: "{{tag}}", Content-Type: "text/calendar;charset=utf-8", User-Agent: "DAVx5/4.4.2-ose (dav4jvm; okhttp/4.12.0)" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:+//IDN bitfire.at//DAVx5/4.4.2 ical4j/3.2.19
+        BEGIN:VEVENT
+        UID:davx5-accept-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270312T090000Z
+        DTEND:20270312T100000Z
+        SUMMARY:Abstimmung
+        ORGANIZER:mailto:olivia@{{login_domain}}
+        ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;RSVP=TRUE;CN=Otto Other:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the organizer's copy shows the answer
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/davx5-accept.ics"
+    expect:
+      status: 200
+      ical_contains: ["PARTSTAT=ACCEPTED", "mailto:otto@{{login_domain}}"]
+      ical_excludes: ["PARTSTAT=NEEDS-ACTION"]
+
+  - name: a write with the entity tag from before the answer is refused
+    as: otto
+    request:
+      method: PUT
+      path: "{{copy}}"
+      headers: { If-Match: "{{etag}}", Content-Type: "text/calendar;charset=utf-8", User-Agent: "DAVx5/4.4.2-ose (dav4jvm; okhttp/4.12.0)" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:+//IDN bitfire.at//DAVx5/4.4.2 ical4j/3.2.19
+        BEGIN:VEVENT
+        UID:davx5-accept-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270312T090000Z
+        DTEND:20270312T100000Z
+        SUMMARY:Abstimmung
+        ORGANIZER:mailto:olivia@{{login_domain}}
+        ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;RSVP=TRUE;CN=Otto Other:mailto:otto@{{login_domain}}
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 412

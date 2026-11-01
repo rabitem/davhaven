@@ -1,0 +1,29 @@
+[package]
+name = "davhaven-port-tests"
+description = "Davhaven port contract suites run by every adapter."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-domain.workspace = true
+davhaven-fixtures.workspace = true
+davhaven-ports = { workspace = true, features = ["testing"] }
+async-trait.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+futures.workspace = true
+http.workspace = true
+proptest.workspace = true
+secrecy.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "sync", "test-util", "time"] }
+url.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,109 @@
+schema_version: 1
+name: apple-calendar-sync-by-ctag
+description: >
+  Calendar on macOS does not use sync tokens: it compares the CTag of a calendar with the one it stored and lists the
+  entity tags again when it changed. The CTag moves with every write and stays when nothing was written, so a client
+  that was away (its stored CTag is stale) lists again, and a client that is up to date does not.
+client: apple-calendar
+feature: sync-after-token-expiry
+origin: synthetic
+provenance: >
+  The poll of Calendar on macOS: PROPFIND of the calendar for getctag, then the member listing (testdata/dav
+  macos-propfind-members.xml); the CTag semantics are those of PLAN 2.7.
+actors:
+  olivia: owner
+variables:
+  home: /dav/calendars/{{tenant}}/olivia
+  cal: /dav/calendars/{{tenant}}/olivia/apple-ctag
+steps:
+  - name: a calendar is created for the scenario
+    as: olivia
+    request:
+      method: MKCALENDAR
+      path: "{{cal}}/"
+    expect:
+      status: 201
+
+  - name: the CTag of the empty calendar is read
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:propfind xmlns:A="DAV:" xmlns:CS="http://calendarserver.org/ns/"><A:prop><CS:getctag/></A:prop></A:propfind>
+    capture:
+      ctag0: { xpath: "//{http://calendarserver.org/ns/}getctag" }
+    expect:
+      status: 207
+
+  - name: an event is written
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ctag-1.ics"
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//macOS 15.0//EN
+        BEGIN:VEVENT
+        UID:apple-ctag-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270320T090000Z
+        DTEND:20270320T100000Z
+        SUMMARY:One
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the CTag changed, so the client lists the calendar again
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:propfind xmlns:A="DAV:" xmlns:CS="http://calendarserver.org/ns/"><A:prop><CS:getctag/></A:prop></A:propfind>
+    capture:
+      ctag1: { xpath: "//{http://calendarserver.org/ns/}getctag" }
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{http://calendarserver.org/ns/}getctag", not_equals: "{{ctag0}}" }
+
+  - name: the members are listed
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/macos-propfind-members.xml
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/ctag-1.ics": 200
+
+  - name: without a write the CTag stays the same
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{cal}}/"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <A:propfind xmlns:A="DAV:" xmlns:CS="http://calendarserver.org/ns/"><A:prop><CS:getctag/></A:prop></A:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{http://calendarserver.org/ns/}getctag", equals: "{{ctag1}}" }
+
+  - name: the calendar is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/"
+    expect:
+      status: 204

@@ -1,0 +1,30 @@
+{% extends "_page.html" %}
+{% block title %}{{ event.summary }}{% endblock %}
+{% block content %}
+<h1>{{ event.summary }}</h1>
+{% if error == "invalid_csrf" %}<p class="notice error" role="alert">Ihre Antwort konnte nicht gespeichert werden, weil diese Seite zu lange geöffnet war. Bitte versuchen Sie es erneut.</p>
+{% elif error == "invalid_answer" %}<p class="notice error" role="alert">Bitte wählen Sie eine der Antworten unten aus.</p>
+{% elif error == "comment_too_long" %}<p class="notice error" role="alert">Ihr Kommentar ist zu lang. Er darf höchstens {{ form.comment_max }} Zeichen haben.</p>
+{% endif %}<dl>
+<dt>Wann</dt>
+<dd>{{ when(event.start, event.end) }}</dd>
+{% if event.location %}<dt>Wo</dt>
+<dd>{{ event.location }}</dd>
+{% endif %}<dt>Organisator</dt>
+<dd>{{ organizer.name }}</dd>
+</dl>
+{% if cancelled %}<p class="notice" role="status">Dieser Termin wurde abgesagt. Sie müssen nicht antworten.</p>
+{% else %}{% if current == "ACCEPTED" %}<p class="notice" role="status">Ihre bisherige Antwort: <strong>Zugesagt</strong>. Sie können sie unten ändern.</p>
+{% elif current == "DECLINED" %}<p class="notice" role="status">Ihre bisherige Antwort: <strong>Abgesagt</strong>. Sie können sie unten ändern.</p>
+{% elif current == "TENTATIVE" %}<p class="notice" role="status">Ihre bisherige Antwort: <strong>Vielleicht</strong>. Sie können sie unten ändern.</p>
+{% endif %}<form method="post" action="{{ form.action }}">
+<input type="hidden" name="csrf" value="{{ form.csrf }}">
+<label for="comment">Kommentar für den Organisator (optional)</label>
+<textarea id="comment" name="comment" rows="3" maxlength="{{ form.comment_max }}"></textarea>
+<div class="actions" role="group" aria-label="Ihre Antwort">
+<button type="submit" name="partstat" value="ACCEPTED" class="primary">Zusagen</button>
+<button type="submit" name="partstat" value="TENTATIVE">Vielleicht</button>
+<button type="submit" name="partstat" value="DECLINED">Absagen</button>
+</div>
+</form>
+{% endif %}{% endblock %}

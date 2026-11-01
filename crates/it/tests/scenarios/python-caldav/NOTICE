@@ -1,0 +1,5 @@
+Requests and expectations in this directory follow the structure of the functional tests of the python caldav library
+(https://github.com/python-caldav/caldav, tests/test_caldav.py), which is licensed under the Apache License, Version 2.0 (and,
+at the choice of the user, the GNU General Public License, version 3), Copyright (c) the authors of python caldav. The scenarios
+are written anew for Davhaven (other fixtures, other object bodies, YAML instead of Python); the test that a scenario follows
+is named in its provenance. This notice is kept as the license of the library asks for.

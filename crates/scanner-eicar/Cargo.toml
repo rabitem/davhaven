@@ -1,0 +1,27 @@
+[package]
+name = "davhaven-scanner-eicar"
+description = "Davhaven content scanner that finds the EICAR anti-virus test string, a fake for the scanning path."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-ports.workspace = true
+async-trait.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+davhaven-domain.workspace = true
+davhaven-port-tests.workspace = true
+davhaven-ports = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
+uuid.workspace = true
+
+[lints]
+workspace = true

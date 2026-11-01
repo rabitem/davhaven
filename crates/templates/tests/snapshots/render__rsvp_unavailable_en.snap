@@ -1,0 +1,30 @@
+---
+source: crates/templates/tests/render.rs
+expression: show(&output)
+---
+subject: Link not valid
+
+--- html ---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Link not valid</title>
+<link rel="stylesheet" href="/assets/default/page.css">
+</head>
+<body>
+<main>
+<div class="card">
+
+<h1>This link is not valid</h1>
+<p>The link is unknown, has expired or was withdrawn, for example because the event was cancelled or deleted, or because a subscription link was replaced.</p>
+<p>If you still want to answer an invitation, please ask the organizer to invite you again.</p>
+
+</div>
+</main>
+</body>
+</html>
+--- text ---

@@ -1,0 +1,51 @@
+---
+source: crates/templates/tests/render.rs
+expression: "show(&render(&engine, Template::ImipReply, locale, model))"
+---
+subject: Zugesagt: Offsite
+
+--- html ---
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Offsite</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f3f5;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f1f3f5;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border:1px solid #d9dee3;border-radius:6px;font-family:Arial,Helvetica,sans-serif;color:#1f2933;font-size:16px;line-height:1.5;">
+<tr><td style="padding:24px 28px 8px 28px;">
+
+
+<p style="margin:0 0 16px 0;"><strong>guest@example.net</strong> hat Ihre Einladung angenommen.</p>
+<h1 style="font-size:20px;line-height:1.3;margin:0 0 12px 0;">Offsite</h1>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px 0;">
+<tr><th scope="row" align="left" valign="top" style="padding:2px 16px 2px 0;font-weight:bold;">Wann</th><td style="padding:2px 0;">Dienstag, 12. Januar 2027 (ganztägig)</td></tr>
+</table>
+<p style="margin:0 0 16px 0;font-size:13px;color:#52606d;">Ihre Kalender-App aktualisiert die Antwort dieses Teilnehmers, wenn Sie die angehängte Antwort (invite.ics) öffnen.</p>
+
+</td></tr>
+<tr><td style="padding:16px 28px 24px 28px;border-top:1px solid #e4e7eb;font-size:13px;line-height:1.5;color:#52606d;">
+<p style="margin:0;">Gesendet von Example Organisation.</p>
+<p style="margin:8px 0 0 0;">Bitte antworten Sie nicht auf diese E-Mail, sie wurde automatisch versendet.</p>
+
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
+--- text ---
+guest@example.net hat Ihre Einladung angenommen.
+
+Offsite
+Wann: Dienstag, 12. Januar 2027 (ganztägig)
+
+Ihre Kalender-App aktualisiert die Antwort dieses Teilnehmers, wenn Sie die angehängte Antwort (invite.ics) öffnen.
+
+--
+Gesendet von Example Organisation.
+Bitte antworten Sie nicht auf diese E-Mail, sie wurde automatisch versendet.

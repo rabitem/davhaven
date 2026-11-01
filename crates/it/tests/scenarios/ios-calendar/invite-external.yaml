@@ -1,0 +1,84 @@
+schema_version: 1
+name: ios-calendar-invite-external
+description: >
+  Calendar on iOS uploads a meeting with a guest outside the tenant: the write succeeds, the organizer's copy records
+  that the invitation was queued or mailed (iMIP), nothing is written for the guest on this server, and deleting the
+  meeting cancels it.
+client: ios-calendar
+feature: invite-external
+origin: synthetic
+provenance: >
+  The organizer's object as Calendar on iOS writes a meeting with an attendee whose address belongs to no principal
+  (PRODID -//Apple Inc.//iOS 18.0//EN); no capture of a deployed instance yet. The mail itself is covered by the
+  scheduling matrix.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the meeting with a guest is uploaded
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ios-external.ics"
+      headers: { If-None-Match: "*", User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//iOS 18.0//EN
+        BEGIN:VEVENT
+        UID:ios-external-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270318T130000Z
+        DTEND:20270318T140000Z
+        SUMMARY:Kundentermin
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=A Guest;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:guest@example.net
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+      headers:
+        schedule-tag: {}
+
+  - name: the organizer's copy records what happened to the invitation
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/ios-external.ics"
+    expect:
+      status: 200
+      ical_contains: ["SCHEDULE-STATUS=1.", ":mailto:guest@example.net"]
+      ical_excludes: ["SCHEDULE-STATUS=5."]
+
+  - name: a second upload with a changed time keeps the state of the guest
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ios-external.ics"
+      headers: { User-Agent: "iOS/18.0 dataaccessd/1.0" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//iOS 18.0//EN
+        BEGIN:VEVENT
+        UID:ios-external-1@example.org
+        DTSTAMP:20270101T000000Z
+        SEQUENCE:1
+        DTSTART:20270318T140000Z
+        DTEND:20270318T150000Z
+        SUMMARY:Kundentermin
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=A Guest;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:guest@example.net
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: [200, 204]
+
+  - name: the meeting is cancelled by deleting it
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/ios-external.ics"
+    expect:
+      status: 204

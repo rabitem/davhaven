@@ -1,0 +1,40 @@
+[package]
+name = "davhaven-crypto-local"
+description = "Davhaven local cryptography: secret sealer, key ring and credential hasher."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[features]
+# Throwaway identities (a certificate and its key) for the tests of whatever signs profiles; never enabled in a build of the
+# server (its own tests do, as a dev-dependency).
+testing = []
+
+[dependencies]
+davhaven-domain.workspace = true
+davhaven-ports.workspace = true
+base64.workspace = true
+chacha20poly1305.workspace = true
+chrono.workspace = true
+hkdf.workspace = true
+hmac.workspace = true
+ring.workspace = true
+schemars.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+sha2.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+davhaven-port-tests.workspace = true
+davhaven-ports = { workspace = true, features = ["testing"] }
+proptest.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

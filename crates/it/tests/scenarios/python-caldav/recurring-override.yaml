@@ -1,0 +1,86 @@
+schema_version: 1
+name: python-caldav-recurring-with-override
+description: >
+  The python `caldav` library saves a recurring event with a modified instance, fetches it by UID (one resource that holds
+  the master and the override), and searches with expand=True for a window that contains both a regular and the modified
+  instance: the server returns the instances as single events.
+client: python-caldav
+feature: recurring-override
+origin: synthetic
+provenance: >
+  Ported from the functional tests of python-caldav (tests/test_caldav.py: testIssue397, the search with expand);
+  the event is a daily series with an override written for this scenario.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the series with its override is saved
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/py-recurring.ics"
+      headers: { Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//python-caldav//caldav//EN
+        BEGIN:VEVENT
+        UID:py-recurring-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270401T090000Z
+        DTEND:20270401T100000Z
+        RRULE:FREQ=DAILY;COUNT=4
+        SUMMARY:Daily
+        END:VEVENT
+        BEGIN:VEVENT
+        UID:py-recurring-1@example.org
+        DTSTAMP:20270102T000000Z
+        RECURRENCE-ID:20270402T090000Z
+        DTSTART:20270402T120000Z
+        DTEND:20270402T130000Z
+        SUMMARY:Daily (noon)
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the window of the first two days is searched with expanded instances
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="utf-8" ?>
+        <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+          <D:prop><D:getetag/><C:calendar-data><C:expand start="20270401T000000Z" end="20270403T000000Z"/></C:calendar-data></D:prop>
+          <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+            <C:time-range start="20270401T000000Z" end="20270403T000000Z"/>
+          </C:comp-filter></C:comp-filter></C:filter>
+        </C:calendar-query>
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/py-recurring.ics": 200
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "DTSTART:20270401T090000Z" }
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "DTSTART:20270402T120000Z" }
+      body_excludes: ["RRULE"]
+
+  - name: the series is fetched by its UID as one resource
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/py-recurring.ics"
+    expect:
+      status: 200
+      ical_contains: ["RRULE:FREQ=DAILY;COUNT=4", "RECURRENCE-ID:20270402T090000Z"]
+
+  - name: the series is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/py-recurring.ics"
+    expect:
+      status: 204

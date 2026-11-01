@@ -1,0 +1,90 @@
+---
+source: crates/mime/tests/imip.rs
+expression: assembled(&mail)
+---
+Date: Fri, 15 Jan 2027 08:00:00 +0000
+From: "Anna Example via Example Organisation" <noreply@mail.example.org>
+Reply-To: "Anna Example" <anna@example.org>
+To: "Guest Example" <guest@example.net>
+Subject: Cancelled: Planning session
+Message-ID: <00000000-0000-7000-8000-000000000002@mail.example.org>
+Content-Class: urn:content-classes:calendarmessage
+Auto-Submitted: auto-generated
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+ boundary="=_davhaven_mixed_ad6324297b28da5ee07e220f81778d1b"
+
+--=_davhaven_mixed_ad6324297b28da5ee07e220f81778d1b
+Content-Type: multipart/alternative;
+ boundary="=_davhaven_alt_ba82ae221075f05ae2642d9c7d4f94ff"
+
+--=_davhaven_alt_ba82ae221075f05ae2642d9c7d4f94ff
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+Anna Example has cancelled this event.
+
+--=_davhaven_alt_ba82ae221075f05ae2642d9c7d4f94ff
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+<p>Anna Example has cancelled this event.</p>
+
+--=_davhaven_alt_ba82ae221075f05ae2642d9c7d4f94ff
+Content-Type: text/calendar; charset=UTF-8; method=CANCEL
+Content-Transfer-Encoding: 7bit
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Davhaven//Scheduling//EN
+CALSCALE:GREGORIAN
+METHOD:CANCEL
+BEGIN:VTIMEZONE
+TZID:Europe/Berlin
+BEGIN:STANDARD
+DTSTART:19701025T030000
+RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:19700329T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0200
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:6f1c0c9e-2f1b-4b0e-9a55-0a6c0a5b7a11
+DTSTAMP:20270115T080000Z
+DTSTART;TZID=Europe/Berlin:20270112T100000
+DTEND;TZID=Europe/Berlin:20270112T113000
+SUMMARY:Planning session
+SEQUENCE:1
+ORGANIZER;CN=Anna Example:mailto:anna@example.org
+ATTENDEE;CN=Guest Example;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:
+ mailto:guest@example.net
+END:VEVENT
+END:VCALENDAR
+
+--=_davhaven_alt_ba82ae221075f05ae2642d9c7d4f94ff--
+--=_davhaven_mixed_ad6324297b28da5ee07e220f81778d1b
+Content-Disposition: attachment; filename="invite.ics"
+Content-Type: application/ics; name="invite.ics"
+Content-Transfer-Encoding: base64
+
+QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KUFJPRElEOi0vL0RhdmhhdmVuLy9TY2hlZHVs
+aW5nLy9FTg0KQ0FMU0NBTEU6R1JFR09SSUFODQpNRVRIT0Q6Q0FOQ0VMDQpCRUdJTjpWVElNRVpP
+TkUNClRaSUQ6RXVyb3BlL0Jlcmxpbg0KQkVHSU46U1RBTkRBUkQNCkRUU1RBUlQ6MTk3MDEwMjVU
+MDMwMDAwDQpSUlVMRTpGUkVRPVlFQVJMWTtCWU1PTlRIPTEwO0JZREFZPS0xU1UNClRaT0ZGU0VU
+RlJPTTorMDIwMA0KVFpPRkZTRVRUTzorMDEwMA0KRU5EOlNUQU5EQVJEDQpCRUdJTjpEQVlMSUdI
+VA0KRFRTVEFSVDoxOTcwMDMyOVQwMjAwMDANClJSVUxFOkZSRVE9WUVBUkxZO0JZTU9OVEg9MztC
+WURBWT0tMVNVDQpUWk9GRlNFVEZST006KzAxMDANClRaT0ZGU0VUVE86KzAyMDANCkVORDpEQVlM
+SUdIVA0KRU5EOlZUSU1FWk9ORQ0KQkVHSU46VkVWRU5UDQpVSUQ6NmYxYzBjOWUtMmYxYi00YjBl
+LTlhNTUtMGE2YzBhNWI3YTExDQpEVFNUQU1QOjIwMjcwMTE1VDA4MDAwMFoNCkRUU1RBUlQ7VFpJ
+RD1FdXJvcGUvQmVybGluOjIwMjcwMTEyVDEwMDAwMA0KRFRFTkQ7VFpJRD1FdXJvcGUvQmVybGlu
+OjIwMjcwMTEyVDExMzAwMA0KU1VNTUFSWTpQbGFubmluZyBzZXNzaW9uDQpTRVFVRU5DRToxDQpP
+UkdBTklaRVI7Q049QW5uYSBFeGFtcGxlOm1haWx0bzphbm5hQGV4YW1wbGUub3JnDQpBVFRFTkRF
+RTtDTj1HdWVzdCBFeGFtcGxlO1BBUlRTVEFUPU5FRURTLUFDVElPTjtSU1ZQPVRSVUU6DQogbWFp
+bHRvOmd1ZXN0QGV4YW1wbGUubmV0DQpFTkQ6VkVWRU5UDQpFTkQ6VkNBTEVOREFSDQo=
+--=_davhaven_mixed_ad6324297b28da5ee07e220f81778d1b--

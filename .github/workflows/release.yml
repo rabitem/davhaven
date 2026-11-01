@@ -1,0 +1,267 @@
+# Builds the container image once per commit on main and per version tag, smoke-tests that image, and only then pushes
+# it to GHCR and reports the immutable digest (PLAN 4.5). No signing, SBOM or provenance attestations: delivery is
+# build, digest, deploy, health check. Deployment lives outside this repository; when `vars.DEPLOY_DISPATCH_REPO` is
+# set, a `repository_dispatch` event with the digest notifies that repository (token: `secrets.DEPLOY_DISPATCH_TOKEN`).
+#
+# On main, ci.yml calls this workflow after the checks and the tests of the same commit succeeded. A version tag starts it
+# directly (ci.yml does not run for tags: a workflow that publishes must not restore caches), and its first job checks that
+# the checks and the tests of the tagged commit succeeded. Nothing builds or smoke-tests the image for a pull request: this
+# smoke test is the gate, and when it fails nothing is pushed. A run started by hand builds and smoke-tests the selected ref
+# and pushes nothing.
+#
+# Runner labels come from `vars.CI_RUNS_ON`; without it the jobs use GitHub-hosted `ubuntu-latest` (ENGINEERING_RULES
+# R18). The image job uses the Docker daemon of the runner and runs scripts of the checked-out commit on the host: it is
+# the one job that is not contained, which is why it runs for main, tags and maintainers' manual runs only. It keeps its
+# Docker configuration, its builder, its network and its containers to itself and removes them by label at the end, so
+# that it neither uses nor leaves behind anything that other jobs of a shared runner user rely on.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_call:
+    secrets:
+      DEPLOY_DISPATCH_TOKEN:
+        description: Token that may send repository_dispatch events to vars.DEPLOY_DISPATCH_REPO
+        required: false
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # A version tag is released only if the commit it names passed the checks and the tests (main gets this from ci.yml).
+  gate:
+    name: gate
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 5
+    permissions:
+      checks: read
+    steps:
+      - name: The checks and the tests of this commit succeeded
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ github.api_url }}/repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs?per_page=100
+        run: |
+          # The token goes to curl through its standard input, never through its arguments.
+          printf 'Authorization: Bearer %s\n' "${GH_TOKEN}" |
+            curl --fail --silent --show-error --header @- --header 'Accept: application/vnd.github+json' \
+              --header 'X-GitHub-Api-Version: 2022-11-28' "${URL}" >"${RUNNER_TEMP}/check-runs.json"
+          python3 - "${RUNNER_TEMP}/check-runs.json" <<'PY'
+          import json
+          import sys
+
+          runs = json.load(open(sys.argv[1], encoding="utf-8"))["check_runs"]
+          failed = [name for name in ("checks", "test")
+                    if "success" not in [run["conclusion"] for run in runs if run["name"] == name]]
+          if failed:
+              sys.exit("no successful run of " + ", ".join(failed) + " for this commit: let CI finish (or fix it) and run this job again")
+          print("checks and test succeeded for this commit")
+          PY
+
+  unsupported:
+    name: unsupported
+    needs: [gate]
+    if: ${{ !cancelled() && needs.gate.result != 'failure' && startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
+    env:
+      CARGO_TARGET_DIR: /ci-target
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - name: No unsupported() stubs in a release
+        run: cargo xtask unsupported --deny
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
+
+  image:
+    name: image
+    needs: [gate, unsupported]
+    if: ${{ !cancelled() && (needs.gate.result == 'success' || needs.gate.result == 'skipped') && (needs.unsupported.result == 'success' || needs.unsupported.result == 'skipped') }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      digest: ${{ steps.push.outputs.digest }}
+    env:
+      # The SQL client and the server of the smoke test.
+      POSTGRES_IMAGE: postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+      # Names the builder and labels everything this run creates in the Docker daemon (containers, networks, volumes).
+      RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      # A subdirectory: other jobs of this repository on the same runner run in containers as root and leave files in the
+      # workspace that this job, running as the runner user, could not clean up when it checks out.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: source
+      # Registry credentials, builder instances and the current-builder pointer of the runner user stay untouched.
+      - name: Docker configuration of this job
+        run: echo "DOCKER_CONFIG=${RUNNER_TEMP}/docker" >> "${GITHUB_ENV}"
+      - name: Image name and tags
+        id: meta
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          image="ghcr.io/${OWNER,,}/davhaven"
+          if [ "${REF_TYPE}" = "tag" ]; then
+            tag="${image}:${REF_NAME#v}"
+          else
+            tag="${image}:main-${SHA}"
+          fi
+          {
+            echo "image=${image}"
+            echo "tag=${tag}"
+          } >> "${GITHUB_OUTPUT}"
+      # The build runs in a BuildKit container of its own (pinned by digest, without insecure entitlements), removed at
+      # the end, with the limits of a job container. `use: false` keeps the builder out of the default selection.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        id: buildx
+        with:
+          name: davhaven-${{ env.RUN_ID }}
+          use: false
+          buildkitd-flags: --oci-worker-gc=true
+          driver-opts: |
+            image=moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
+            memory=10g
+            memory-swap=10g
+            cpu-period=100000
+            cpu-quota=400000
+            cpu-shares=256
+      # The image is built once, into the Docker daemon, under the name it is pushed with.
+      - name: Build
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: source
+          push: false
+          load: true
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta.outputs.tag }}
+          build-args: |
+            REVISION=${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.title=davhaven
+            org.opencontainers.image.licenses=Apache-2.0 OR MIT
+      - name: Report the build
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          BUILT: ${{ steps.build.outputs.digest }}
+        run: |
+          id="$(docker image inspect --format '{{.Id}}' "${TAG}")"
+          echo "built ${TAG}: digest of the build ${BUILT:-none}, image id ${id}"
+          echo "Built \`${TAG}\`: build digest \`${BUILT:-none}\`, image id \`${id}\`" >> "${GITHUB_STEP_SUMMARY}"
+      - name: Smoke (readiness and one scenario)
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          DAVHAVEN_SMOKE_LABEL: davhaven.ci.run=${{ env.RUN_ID }}
+        run: bash source/scripts/image-smoke.sh "${TAG}"
+      # Only the image that passed is pushed. The registry credentials are written into the Docker configuration of this
+      # job by the login and removed again by its post step; the build and the smoke test ran without them.
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        if: ${{ github.event_name == 'push' }}
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Push
+        id: push
+        if: ${{ github.event_name == 'push' }}
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          BUILT: ${{ steps.build.outputs.digest }}
+        run: |
+          docker push "${TAG}" | tee "${RUNNER_TEMP}/push.log"
+          pushed="$(sed -n 's/^.*digest: \(sha256:[0-9a-f]\{64\}\) size:.*$/\1/p' "${RUNNER_TEMP}/push.log" | tail -n 1)"
+          # What the registry holds under the tag now, not what the local image store remembers.
+          digest="$(docker buildx imagetools inspect "${TAG}" --format '{{.Manifest.Digest}}')"
+          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "no digest for ${TAG} after the push: ${digest}" >&2
+            exit 1
+          fi
+          # It must be what this push produced: the tag was not moved in between.
+          if [ "${digest}" != "${pushed}" ]; then
+            echo "the registry holds ${digest} under ${TAG}, the push produced ${pushed:-no digest}" >&2
+            exit 1
+          fi
+          # And it must be the image that was built and smoke-tested. A daemon whose image store is keyed by the digest of the
+          # build (the containerd store) shows that its image id is the build digest; then the push may not change it. A
+          # classic store converts the image when it pushes, and its image id is the config digest: nothing to compare then.
+          id="$(docker image inspect --format '{{.Id}}' "${TAG}")"
+          if [ -n "${BUILT}" ] && [ "${id}" = "${BUILT}" ] && [ "${digest}" != "${BUILT}" ]; then
+            echo "the registry holds ${digest} under ${TAG}, the build produced ${BUILT}" >&2
+            exit 1
+          fi
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+          echo "Pushed ${IMAGE}@${digest}" >> "${GITHUB_STEP_SUMMARY}"
+      # Runs even when the smoke test was killed halfway: everything this run made in the Docker daemon is found by its label
+      # or its name. A network left behind would use one of the few address pools of the daemon for good.
+      - name: Remove what this run created in the Docker daemon
+        if: ${{ always() }}
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          BUILDER: ${{ steps.buildx.outputs.name }}
+        run: |
+          label="davhaven.ci.run=${RUN_ID}"
+          docker ps --all --quiet --filter "label=${label}" | xargs --no-run-if-empty docker rm --force --volumes
+          docker network ls --quiet --filter "label=${label}" | xargs --no-run-if-empty docker network rm
+          docker volume ls --quiet --filter "label=${label}" | xargs --no-run-if-empty docker volume rm --force
+          docker buildx rm --force "${BUILDER}" || true
+          docker image rm --force "${TAG}" || true
+
+  dispatch:
+    name: dispatch
+    needs: [image]
+    if: ${{ !cancelled() && needs.image.result == 'success' && github.event_name == 'push' && vars.DEPLOY_DISPATCH_REPO != '' }}
+    # A call of the GitHub API that takes seconds: GitHub-hosted, never a self-hosted runner.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Notify the deployment repository
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_DISPATCH_TOKEN }}
+          DEPLOY_REPO: ${{ vars.DEPLOY_DISPATCH_REPO }}
+          IMAGE: ${{ needs.image.outputs.image }}
+          DIGEST: ${{ needs.image.outputs.digest }}
+          REF: ${{ github.ref }}
+          SHA: ${{ github.sha }}
+        run: |
+          gh api --method POST "repos/${DEPLOY_REPO}/dispatches" \
+            -f event_type=davhaven-image \
+            -f "client_payload[image]=${IMAGE}" \
+            -f "client_payload[digest]=${DIGEST}" \
+            -f "client_payload[ref]=${REF}" \
+            -f "client_payload[sha]=${SHA}"

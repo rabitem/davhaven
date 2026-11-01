@@ -1,0 +1,15 @@
+{% if update %}{{ organizer.name }} hat eine Einladung für Sie aktualisiert.{% else %}{{ organizer.name }} lädt Sie zu einem Termin ein.{% endif %}
+
+{{ event.summary }}
+Wann: {{ when(event.start, event.end) }}
+{% if event.location %}Wo: {{ event.location }}
+{% endif %}Organisator: {{ organizer.name }}
+{% if event.description %}
+{{ event.description }}
+{% endif %}{% if rsvp_url %}
+Bitte teilen Sie {{ organizer.name }} mit, ob Sie teilnehmen können:
+{{ rsvp_url }}
+{% endif %}
+Ihre Kalender-App kann den Termin auch aus der angehängten Einladung (invite.ics) übernehmen.
+
+{% include "_footer." ~ locale ~ ".txt" %}

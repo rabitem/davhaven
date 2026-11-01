@@ -1,0 +1,11 @@
+{% set who = attendee.name or attendee.email %}{% if reply.partstat == "ACCEPTED" %}{{ who }} hat Ihre Einladung angenommen.{% elif reply.partstat == "DECLINED" %}{{ who }} hat Ihre Einladung abgelehnt.{% elif reply.partstat == "TENTATIVE" %}{{ who }} hat Ihre Einladung vorläufig angenommen.{% else %}{{ who }} hat auf Ihre Einladung geantwortet.{% endif %}
+
+{{ event.summary }}
+Wann: {{ when(event.start, event.end) }}
+{% if event.location %}Wo: {{ event.location }}
+{% endif %}{% if reply.comment %}
+Kommentar: {{ reply.comment }}
+{% endif %}
+Ihre Kalender-App aktualisiert die Antwort dieses Teilnehmers, wenn Sie die angehängte Antwort (invite.ics) öffnen.
+
+{% include "_footer." ~ locale ~ ".txt" %}

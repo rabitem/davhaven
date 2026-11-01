@@ -1,0 +1,86 @@
+{
+  "kind": "calendar#events",
+  "etag": "\"p32c4v0d1k4q9u0h\"",
+  "summary": "anna@example.org",
+  "updated": "2026-10-21T09:30:00.512Z",
+  "timeZone": "Europe/Berlin",
+  "accessRole": "owner",
+  "nextSyncToken": "CIDw5qa-8oEDEIDw5qa-8oEDGAUgAQ==",
+  "items": [
+    {
+      "kind": "calendar#event",
+      "etag": "\"3512341234123002\"",
+      "id": "5s1dvkr7g5fc7h5q8k3l4n9p2o",
+      "status": "confirmed",
+      "created": "2026-09-03T08:00:00.000Z",
+      "updated": "2026-10-20T09:30:00.000Z",
+      "summary": "Stand-up",
+      "start": {
+        "dateTime": "2027-01-05T10:00:00+01:00",
+        "timeZone": "Europe/Berlin"
+      },
+      "end": {
+        "dateTime": "2027-01-05T10:15:00+01:00",
+        "timeZone": "Europe/Berlin"
+      },
+      "recurrence": [
+        "RRULE:FREQ=WEEKLY;BYDAY=TU"
+      ],
+      "iCalUID": "5s1dvkr7g5fc7h5q8k3l4n9p2o@google.com",
+      "sequence": 0
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3512341234123003\"",
+      "id": "5s1dvkr7g5fc7h5q8k3l4n9p2o_20270112T090000Z",
+      "status": "confirmed",
+      "created": "2026-09-03T08:00:00.000Z",
+      "updated": "2026-10-21T09:30:00.000Z",
+      "summary": "Stand-up (longer)",
+      "start": {
+        "dateTime": "2027-01-12T11:00:00+01:00",
+        "timeZone": "Europe/Berlin"
+      },
+      "end": {
+        "dateTime": "2027-01-12T11:30:00+01:00",
+        "timeZone": "Europe/Berlin"
+      },
+      "recurringEventId": "5s1dvkr7g5fc7h5q8k3l4n9p2o",
+      "originalStartTime": {
+        "dateTime": "2027-01-12T10:00:00+01:00",
+        "timeZone": "Europe/Berlin"
+      },
+      "iCalUID": "5s1dvkr7g5fc7h5q8k3l4n9p2o@google.com",
+      "sequence": 0
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3512341234123004\"",
+      "id": "5s1dvkr7g5fc7h5q8k3l4n9p2o_20270119T090000Z",
+      "status": "cancelled",
+      "recurringEventId": "5s1dvkr7g5fc7h5q8k3l4n9p2o",
+      "originalStartTime": {
+        "dateTime": "2027-01-19T10:00:00+01:00",
+        "timeZone": "Europe/Berlin"
+      }
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3512341234123005\"",
+      "id": "c0r4jn6p3u2l8q7s1t5v9a0b3e",
+      "status": "tentative",
+      "created": "2026-09-04T08:00:00.000Z",
+      "updated": "2026-09-04T08:00:00.000Z",
+      "summary": "Doctor",
+      "start": {
+        "dateTime": "2027-02-02T07:30:00Z"
+      },
+      "end": {
+        "dateTime": "2027-02-02T08:00:00Z"
+      },
+      "visibility": "private",
+      "iCalUID": "c0r4jn6p3u2l8q7s1t5v9a0b3e@google.com",
+      "sequence": 3
+    }
+  ]
+}

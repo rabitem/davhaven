@@ -1,0 +1,60 @@
+[package]
+name = "davhaven-testkit"
+description = "Davhaven test harness: in-process test application, transports, matrices and client flows."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-api.workspace = true
+davhaven-app.workspace = true
+davhaven-auth-local.workspace = true
+davhaven-crypto-local = { workspace = true, features = ["testing"] }
+davhaven-dav.workspace = true
+davhaven-domain.workspace = true
+davhaven-fixtures.workspace = true
+davhaven-hooks-webhook.workspace = true
+davhaven-http.workspace = true
+davhaven-http-egress.workspace = true
+davhaven-mail-memory.workspace = true
+davhaven-mcp.workspace = true
+davhaven-port-tests.workspace = true
+davhaven-ports = { workspace = true, features = ["testing"] }
+davhaven-provider-fake.workspace = true
+davhaven-ratelimit-memory.workspace = true
+davhaven-server = { workspace = true, features = ["provider-fake"] }
+davhaven-store-memory.workspace = true
+davhaven-store-postgres.workspace = true
+davhaven-templates.workspace = true
+davhaven-wire.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+axum.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+futures.workspace = true
+http.workspace = true
+percent-encoding.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde-saphyr.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+toml.workspace = true
+tower.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

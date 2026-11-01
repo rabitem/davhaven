@@ -1,0 +1,5 @@
+master: significant [STATUS]
+added attendees: -
+removed attendees: -
+cancelled instances: -
+needs sequence bump: true

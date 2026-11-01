@@ -1,0 +1,64 @@
+schema_version: 1
+name: ccs-caldavtester-invite-external
+description: >
+  Implicit scheduling with attendees that this server does not host, as the CalendarServer test suite checks it: an
+  attendee outside the tenant is delivered to by mail and gets a delivery status, an attendee with SCHEDULE-AGENT=NONE
+  and one with SCHEDULE-AGENT=CLIENT are left alone, and the organizer's copy keeps those parameters.
+client: ccs-caldavtester
+feature: invite-external
+origin: synthetic
+provenance: >
+  Written after scripts/tests/CalDAV/schedule-agent* and implicit/ of ccs-caldavtester (see NOTICE); the address of
+  the guest is in no tenant of the fixture world.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: a meeting with three outside attendees is put
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ccs-external.ics"
+      headers: { If-None-Match: "*" }
+      ical: |
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        PRODID:-//Apple Inc.//CalendarServer tests//EN
+        BEGIN:VEVENT
+        UID:ccs-external-1@example.org
+        DTSTAMP:20270101T000000Z
+        DTSTART:20270408T090000Z
+        DTEND:20270408T100000Z
+        SUMMARY:Outside attendees
+        ORGANIZER;CN=Olivia Owner:mailto:olivia@{{login_domain}}
+        ATTENDEE;CN=Server Guest;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:server-guest@example.net
+        ATTENDEE;CN=Silent Guest;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;SCHEDULE-AGENT=NONE:mailto:silent-guest@example.net
+        ATTENDEE;CN=Client Guest;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;SCHEDULE-AGENT=CLIENT:mailto:client-guest@example.net
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 201
+
+  - name: the guest that the server mails has a delivery state, the others have none
+    as: olivia
+    request:
+      method: GET
+      path: "{{cal}}/ccs-external.ics"
+    expect:
+      status: 200
+      ical_contains:
+        - "SCHEDULE-STATUS=1."
+        - "mailto:server-guest@example.net"
+        - "SCHEDULE-AGENT=NONE"
+        - "SCHEDULE-AGENT=CLIENT"
+      ical_excludes:
+        - "SCHEDULE-STATUS=5."
+
+  - name: the meeting is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/ccs-external.ics"
+    expect:
+      status: 204

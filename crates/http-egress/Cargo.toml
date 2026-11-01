@@ -1,0 +1,36 @@
+[package]
+name = "davhaven-http-egress"
+description = "Davhaven outbound HTTP client with egress policy."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-ports.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+futures.workspace = true
+http.workspace = true
+humantime-serde.workspace = true
+ipnet.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["net", "rt", "sync", "time"] }
+url.workspace = true
+
+[dev-dependencies]
+davhaven-port-tests.workspace = true
+davhaven-ports = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
+wiremock.workspace = true
+
+[lints]
+workspace = true

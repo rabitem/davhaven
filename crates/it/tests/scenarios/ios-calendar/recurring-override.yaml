@@ -1,0 +1,48 @@
+schema_version: 1
+name: ios-calendar-recurring-override
+description: >
+  Calendar on iOS asks for the events of one day with the instances expanded (calendar-data with expand): the weekly
+  series of the macOS corpus answers with the one instance of the day, as UTC, without the recurrence rule.
+client: ios-calendar
+feature: recurring-override
+origin: synthetic
+provenance: >
+  Query is testdata/dav/ios-calendar-query-expand.xml, a reconstruction of the day view of Calendar on iOS; the series
+  is testdata/corpus/apple-macos-weekly-override.ics.
+actors:
+  olivia: owner
+variables:
+  cal: /dav/calendars/{{tenant}}/olivia/personal
+steps:
+  - name: the series is stored
+    as: olivia
+    request:
+      method: PUT
+      path: "{{cal}}/ios-weekly.ics"
+      headers: { If-None-Match: "*", Content-Type: "text/calendar; charset=utf-8" }
+      body_file: corpus/apple-macos-weekly-override.ics
+    expect:
+      status: 201
+
+  - name: the first Monday of the series is asked for with expanded instances
+    as: olivia
+    request:
+      method: REPORT
+      path: "{{cal}}/"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/ios-calendar-query-expand.xml
+    expect:
+      status: 207
+      statuses:
+        "{{cal}}/ios-weekly.ics": 200
+      xpath:
+        - { path: "//{urn:ietf:params:xml:ns:caldav}calendar-data", contains: "DTSTART:20270301T090000Z" }
+      body_excludes: ["RRULE", "EXDATE"]
+
+  - name: the series is deleted
+    as: olivia
+    request:
+      method: DELETE
+      path: "{{cal}}/ios-weekly.ics"
+    expect:
+      status: 204

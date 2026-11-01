@@ -1,0 +1,10 @@
+{% extends "_page.html" %}
+{% block title %}{% if success %}Kalender verbunden{% else %}Verbindung fehlgeschlagen{% endif %}{% endblock %}
+{% block content %}
+{% if success %}<h1>Kalender verbunden</h1>
+<p class="notice" role="status">Ihr {{ provider }}-Kalender ist verbunden. Seine Termine erscheinen nach der nächsten Synchronisierung in Ihrer Kalender-App.</p>
+<p>Sie können dieses Fenster schließen.</p>
+{% else %}<h1>Verbindung fehlgeschlagen</h1>
+<p class="notice error" role="alert">Ihr {{ provider }}-Kalender konnte nicht verbunden werden. Die Autorisierung wurde nicht abgeschlossen oder ist abgelaufen.</p>
+<p>Bitte schließen Sie dieses Fenster und starten Sie die Verbindung erneut.</p>
+{% endif %}{% endblock %}

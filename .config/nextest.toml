@@ -1,0 +1,40 @@
+# cargo-nextest configuration, read by CI and by `scripts/check.sh` (https://nexte.st/docs/configuration/).
+
+[profile.default]
+# A test that runs for a minute is reported as slow; after three such periods it is killed and fails. A hung test
+# then fails the run in three minutes instead of holding a runner until the job timeout.
+slow-timeout = { period = "60s", terminate-after = 3 }
+
+# The nightly workflow: property tests with 20000 cases and the full PostgreSQL matrices (CONFORMANCE_FULL=1)
+# have single tests that run for many minutes, so a test is only killed after half an hour.
+[profile.nightly]
+inherits = "default"
+slow-timeout = { period = "300s", terminate-after = 6 }
+
+# The PostgreSQL matrices and flows run a sample on pull requests (every case that needs a world of its own costs seconds
+# there; CONFORMANCE_FULL=1 runs all of them, in the nightly profile below). A sample takes a few minutes on a
+# shared runner. They keep the slow report but are only killed after fifteen minutes.
+[[profile.default.overrides]]
+filter = "package(davhaven-it) & test(/_on_postgres$/)"
+slow-timeout = { period = "60s", terminate-after = 15 }
+
+# The application suite of `crates/it/tests/appcore` runs on PostgreSQL as well (module `on_postgres`): every test makes a
+# database of its own, a clone of the migrated template, and drops it at the end. Dropping a database waits for every backend of
+# the cluster, so on a host that is busy with other builds one test can wait a minute or more for it. That is slow, not hung:
+# they are only killed after fifteen minutes, like the other tests that need PostgreSQL.
+[[profile.default.overrides]]
+filter = "package(davhaven-it) & test(/^on_postgres::/)"
+slow-timeout = { period = "60s", terminate-after = 15 }
+
+# The permission matrix over HTTP (the staging runner against an application on a socket) provisions the world with the
+# management API and asks every case over the wire: the sample of a pull request takes two and a half minutes on a runner and
+# every case several times that, so the three minutes of the default are not a margin (they are the limit of every other test).
+[[profile.default.overrides]]
+filter = "package(davhaven-it) & test(=the_permission_matrix_runs_over_http_and_leaves_out_what_would_change_the_world)"
+slow-timeout = { period = "60s", terminate-after = 10 }
+
+# Nightly runs the full matrices (CONFORMANCE_FULL=1): keep its half hour for them too. A profile's own
+# overrides are evaluated before the inherited ones.
+[[profile.nightly.overrides]]
+filter = "package(davhaven-it) & test(/_on_postgres$/)"
+slow-timeout = { period = "300s", terminate-after = 6 }

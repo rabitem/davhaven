@@ -1,0 +1,5 @@
+attendee: mailto:bob@example.org
+answer: DECLINED
+instances: -
+sequence matches: true
+comment: Sorry, a clash with the audit

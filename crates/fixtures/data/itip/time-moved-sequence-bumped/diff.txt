@@ -1,0 +1,5 @@
+master: significant [DTEND, DTSTART]
+added attendees: -
+removed attendees: -
+cancelled instances: -
+needs sequence bump: false

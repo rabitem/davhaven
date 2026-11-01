@@ -1,0 +1,412 @@
+# Nightly checks (PLAN 3.7). Planned additions: mutants on authz/recurrence/itip/auth, the differential recurrence test,
+# python caldav, vdirsyncer, Litmus and Playwright against a deployed instance.
+#
+# The jobs form one chain, so exactly one of them holds a runner at any time, however many there are and however long they
+# take: a runner shared with other work is not held by two jobs of this repository, and `needs` with `!cancelled()` runs
+# the next job after a failure too. The fuzz job comes last because it takes the longest (seven targets, ten minutes each,
+# one after the other).
+#
+#   proptest -> flake -> postgres-latest -> postgres-oldest -> update-canary -> hack-powerset -> advisories -> fuzz
+#
+# Runner labels come from `vars.CI_RUNS_ON` (ENGINEERING_RULES R18); without it the jobs use GitHub-hosted `ubuntu-latest`.
+# Every job runs in a job container with CPU and memory limits and a low CPU weight, like the jobs of ci.yml. That bounds
+# resources; the container is not a security boundary. The workflow runs on main (schedule) or by hand from a branch of a
+# maintainer.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
+  # Outside the workspace: the target directory lives and dies with the job container.
+  CARGO_TARGET_DIR: /ci-target
+  # The PostgreSQL matrices run in full here; pull requests run a sample of them (docs/testing.md).
+  CONFORMANCE_FULL: "1"
+  # The PostgreSQL service starts with the default of 100 connections (a service container takes no server flags), so the
+  # tests run on four threads, the CPUs of the job container, as in ci.yml.
+  NEXTEST_TEST_THREADS: "4"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  proptest:
+    name: proptest
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
+    services:
+      postgres:
+        image: postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+        env:
+          POSTGRES_USER: davhaven
+          POSTGRES_PASSWORD: davhaven
+          POSTGRES_DB: davhaven
+        options: >-
+          --cpus 2 --memory 3g --memory-swap 3g --cpu-shares 256 --oom-score-adj 500 --pids-limit 1024
+          --tmpfs /var/lib/postgresql:rw,size=2g
+          --health-cmd "pg_isready -U davhaven -d davhaven"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://davhaven:davhaven@postgres:5432/davhaven
+      PROPTEST_CASES: "20000"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-nextest
+      # The nightly profile of .config/nextest.toml kills a test only after half an hour: property tests with 20000
+      # cases and the full matrices have single tests that run for many minutes.
+      - name: Property tests with 20k cases
+        run: cargo nextest run --workspace --all-features --locked --release --profile nightly
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
+
+  flake:
+    name: flake
+    needs: [proptest]
+    if: ${{ !cancelled() }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
+    services:
+      postgres:
+        image: postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+        env:
+          POSTGRES_USER: davhaven
+          POSTGRES_PASSWORD: davhaven
+          POSTGRES_DB: davhaven
+        options: >-
+          --cpus 2 --memory 3g --memory-swap 3g --cpu-shares 256 --oom-score-adj 500 --pids-limit 1024
+          --tmpfs /var/lib/postgresql:rw,size=2g
+          --health-cmd "pg_isready -U davhaven -d davhaven"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://davhaven:davhaven@postgres:5432/davhaven
+      # Five runs of the suite look for flakes; the sample of the matrices is what they repeat.
+      CONFORMANCE_FULL: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-nextest
+      - name: Build tests once
+        run: cargo nextest run --workspace --all-features --locked --no-run
+      - name: Run the suite five times
+        run: |
+          for run in 1 2 3 4 5; do
+            echo "::group::run ${run}"
+            cargo nextest run --workspace --all-features --locked --no-fail-fast
+            echo "::endgroup::"
+          done
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
+
+  postgres-latest:
+    name: postgres-latest
+    needs: [flake]
+    if: ${{ !cancelled() }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
+    # The latest PostgreSQL release, on purpose not pinned by digest. The data directory is in memory, so `fsync=off` of the old
+    # job would change nothing; the connection limit is the default and the tests run on four threads (see the top of the file).
+    services:
+      postgres:
+        image: postgres:latest # zizmor: ignore[unpinned-images] the latest release is the point of this job
+        env:
+          POSTGRES_USER: davhaven
+          POSTGRES_PASSWORD: davhaven
+          POSTGRES_DB: davhaven
+        options: >-
+          --cpus 2 --memory 3g --memory-swap 3g --cpu-shares 256 --oom-score-adj 500 --pids-limit 1024
+          --tmpfs /var/lib/postgresql:rw,size=2g
+          --health-cmd "pg_isready -U davhaven -d davhaven"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://davhaven:davhaven@postgres:5432/davhaven
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-nextest
+      - name: Tests against the latest PostgreSQL
+        run: cargo nextest run --workspace --all-features --locked --profile nightly
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
+
+  postgres-oldest:
+    name: postgres-oldest
+    needs: [postgres-latest]
+    if: ${{ !cancelled() }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
+    # The oldest PostgreSQL the schema supports (docs/operations/database.md, MIN_SERVER_VERSION_NUM): the PostgreSQL tests of
+    # the workspace run on it, so a migration or query that needs a newer server fails here before an operator meets it.
+    services:
+      postgres:
+        image: postgres:15-bookworm@sha256:daeac543477e189e334f159133f4be6dae739b005cec2dfb9d482509fed05465
+        env:
+          POSTGRES_USER: davhaven
+          POSTGRES_PASSWORD: davhaven
+          POSTGRES_DB: davhaven
+        options: >-
+          --cpus 2 --memory 3g --memory-swap 3g --cpu-shares 256 --oom-score-adj 500 --pids-limit 1024
+          --tmpfs /var/lib/postgresql:rw,size=2g
+          --health-cmd "pg_isready -U davhaven -d davhaven"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://davhaven:davhaven@postgres:5432/davhaven
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-nextest
+      - name: PostgreSQL tests against the oldest supported PostgreSQL
+        run: cargo nextest run --workspace --all-features --locked --profile nightly -E 'package(davhaven-store-postgres) | package(davhaven-server) | test(/postgres/)'
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
+
+  update-canary:
+    name: update-canary
+    needs: [postgres-oldest]
+    if: ${{ !cancelled() }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
+    services:
+      postgres:
+        image: postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+        env:
+          POSTGRES_USER: davhaven
+          POSTGRES_PASSWORD: davhaven
+          POSTGRES_DB: davhaven
+        options: >-
+          --cpus 2 --memory 3g --memory-swap 3g --cpu-shares 256 --oom-score-adj 500 --pids-limit 1024
+          --tmpfs /var/lib/postgresql:rw,size=2g
+          --health-cmd "pg_isready -U davhaven -d davhaven"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://davhaven:davhaven@postgres:5432/davhaven
+      CONFORMANCE_FULL: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-nextest
+      - name: Update compatible dependencies
+        run: cargo update --workspace --verbose
+      - name: Clippy and tests on updated dependencies
+        run: |
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+          cargo nextest run --workspace --all-features
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
+
+  hack-powerset:
+    name: hack-powerset
+    needs: [update-canary]
+    if: ${{ !cancelled() }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-hack
+      - name: Feature powerset of the server (depth 2)
+        run: cargo hack check -p davhaven-server --feature-powerset --depth 2 --locked
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
+
+  advisories:
+    name: advisories
+    needs: [hack-powerset]
+    if: ${{ !cancelled() }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      options: --cpus 2 --memory 4g --memory-swap 4g --cpu-shares 256 --oom-score-adj 500 --pids-limit 4096
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-deny
+      - name: Newly published advisories
+        run: cargo deny --all-features --locked check advisories
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
+
+  fuzz:
+    name: fuzz (${{ matrix.package }}/${{ matrix.target }})
+    needs: [advisories]
+    if: ${{ !cancelled() }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    container:
+      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      options: >-
+        ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
+        --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
+    strategy:
+      fail-fast: false
+      # One target at a time: the whole workflow is one chain.
+      max-parallel: 1
+      # Every target of every `crates/*/fuzz` package is listed here, with a corpus that exists: `cargo xtask arch-check` (the
+      # `checks` job of ci.yml) fails for a target that is missing, so that a target is never added and forgotten.
+      matrix:
+        include:
+          # The iCalendar parser, seeded with the corpus of client bodies.
+          - { package: ical, target: parse_validate, corpus: testdata/corpus, libfuzzer: "-max_len=1048576" }
+          - { package: ical, target: expand_filter, corpus: testdata/corpus, libfuzzer: "-max_len=1048576" }
+          - { package: ical, target: itip, corpus: testdata/corpus, libfuzzer: "-max_len=1048576" }
+          - { package: ical, target: zones, corpus: testdata/corpus, libfuzzer: "-max_len=1048576" }
+          - { package: ical, target: everything, corpus: testdata/corpus, libfuzzer: "-max_len=1048576" }
+          # The DAV XML reader, seeded with the request bodies of the clients; memory is capped at 512 MB and 10 s per
+          # input, so that a body that makes the reader allocate or spin fails.
+          - { package: dav, target: xml_reader, corpus: testdata/dav, libfuzzer: "-max_len=262144 -rss_limit_mb=512 -timeout=10" }
+          - { package: dav, target: collaboration_xml, corpus: testdata/dav, libfuzzer: "-max_len=262144 -rss_limit_mb=512 -timeout=10" }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the nightly toolchain (libFuzzer needs the sanitizer runtimes)
+        run: rustup toolchain install nightly --profile minimal
+      # cargo-fuzz is compiled once and restored from the cache (rust-cache keeps what `cargo install` put into the cargo
+      # home); the fuzz targets themselves are built fresh.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          cache-targets: "false"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
+      - name: Fuzz the target for ten minutes
+        working-directory: crates/${{ matrix.package }}
+        env:
+          TARGET: ${{ matrix.target }}
+          CORPUS: ${{ matrix.corpus }}
+          LIBFUZZER: ${{ matrix.libfuzzer }}
+        run: |
+          read -r -a libfuzzer_options <<<"${LIBFUZZER}"
+          cargo +nightly fuzz run "${TARGET}" "../../${CORPUS}" -- -max_total_time=600 "${libfuzzer_options[@]}"
+      - name: Show the input that crashed the target
+        if: failure()
+        working-directory: crates/${{ matrix.package }}
+        run: |
+          for file in fuzz/artifacts/*/*; do
+            if [ -f "${file}" ]; then
+              echo "::group::${file} (base64)"
+              base64 "${file}"
+              echo "::endgroup::"
+            fi
+          done
+      - name: Hand the workspace back to the runner user
+        if: ${{ always() }}
+        run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"

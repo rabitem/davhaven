@@ -1,0 +1,57 @@
+schema_version: 1
+name: apple-calendar-account-setup-by-path
+description: >
+  Calendar on macOS with the account set up by server path (the "Advanced" setup names the principal URL): the principal
+  with its home, inbox, outbox and notification collection, then the home with every calendar the user can see.
+client: apple-calendar
+feature: account-setup
+origin: synthetic
+provenance: >
+  Bodies as Calendar on macOS 15 sends them (testdata/dav/macos-propfind-principal.xml, macos-propfind-home.xml),
+  reconstructed from public traces; no capture of a deployed instance yet.
+actors:
+  olivia: owner
+variables:
+  principal: /dav/principals/{{tenant}}/olivia/
+  home: /dav/calendars/{{tenant}}/olivia/
+steps:
+  - name: the principal names its home and its scheduling and notification collections
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{principal}}"
+      headers: { Depth: "0", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/macos-propfind-principal.xml
+    expect:
+      status: 207
+      xpath:
+        - path: "//{urn:ietf:params:xml:ns:caldav}calendar-home-set/{DAV:}href"
+          equals: "{{home}}"
+        - path: "//{urn:ietf:params:xml:ns:caldav}schedule-inbox-URL/{DAV:}href"
+          equals: "{{home}}inbox/"
+        - path: "//{urn:ietf:params:xml:ns:caldav}schedule-outbox-URL/{DAV:}href"
+          equals: "{{home}}outbox/"
+        - path: "//{http://calendarserver.org/ns/}notification-URL/{DAV:}href"
+          equals: "{{home}}notifications/"
+        - path: "//{urn:ietf:params:xml:ns:caldav}calendar-user-address-set/{DAV:}href"
+          equals: "mailto:olivia@{{login_domain}}"
+
+  - name: the home lists the calendars of the owner and the special collections
+    as: olivia
+    request:
+      method: PROPFIND
+      path: "{{home}}"
+      headers: { Depth: "1", Content-Type: "application/xml; charset=utf-8" }
+      body_file: dav/macos-propfind-home.xml
+    expect:
+      status: 207
+      statuses:
+        "{{home}}personal/": 200
+        "{{home}}projects/": 200
+        "{{home}}google/": 200
+        "{{home}}inbox/": 200
+        "{{home}}outbox/": 200
+        "{{home}}notifications/": 200
+      properties:
+        - { href: "{{home}}personal/", name: "{DAV:}displayname", value: "Personal" }
+        - { href: "{{home}}projects/", name: "{DAV:}displayname", value: "Projects" }

@@ -1,0 +1,10 @@
+{{ organizer.name }} has cancelled this event.
+
+{{ event.summary }}
+Was planned for: {{ when(event.start, event.end) }}
+{% if event.location %}Where: {{ event.location }}
+{% endif %}Organizer: {{ organizer.name }}
+
+Your calendar application removes the event when you open the attached cancellation (invite.ics).
+
+{% include "_footer." ~ locale ~ ".txt" %}

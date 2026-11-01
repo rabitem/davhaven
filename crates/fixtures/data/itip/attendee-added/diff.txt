@@ -1,0 +1,5 @@
+master: insignificant [ATTENDEE]
+added attendees: mailto:dan@example.org
+removed attendees: -
+cancelled instances: -
+needs sequence bump: false

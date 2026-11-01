@@ -1,0 +1,34 @@
+[package]
+name = "davhaven-auth-local"
+description = "Davhaven local authenticator for app passwords and API, feed and RSVP tokens."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+davhaven-domain.workspace = true
+davhaven-ports.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+humantime-serde.workspace = true
+schemars.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
+uuid.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+davhaven-fixtures.workspace = true
+davhaven-ports = { workspace = true, features = ["testing"] }
+proptest.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

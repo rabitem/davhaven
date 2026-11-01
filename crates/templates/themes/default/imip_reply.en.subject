@@ -1,0 +1,1 @@
+{% if reply.partstat == "ACCEPTED" %}Accepted{% elif reply.partstat == "DECLINED" %}Declined{% elif reply.partstat == "TENTATIVE" %}Tentative{% else %}Reply{% endif %}: {{ event.summary }}

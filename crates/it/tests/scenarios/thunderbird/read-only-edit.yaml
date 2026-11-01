@@ -1,0 +1,75 @@
+schema_version: 1
+name: thunderbird-read-only-edit
+description: >
+  Thunderbird opens a calendar that was shared read-only: it reads current-user-privilege-set, shows the calendar as
+  read-only, and when the user tries to change an event anyway the server refuses with 403.
+client: thunderbird
+feature: read-only-edit
+origin: synthetic
+provenance: >
+  The privilege check and the refused write of Thunderbird (Lightning) on a read-only shared calendar; the share is
+  the accepted read grant of the viewers group of the fixture world, reached by gary.
+actors:
+  gary: grantee_via_group
+variables:
+  shared: /dav/calendars/{{tenant}}/gary/projects
+steps:
+  - name: the calendar is listed with its privileges
+    as: gary
+    request:
+      method: PROPFIND
+      path: /dav/calendars/{{tenant}}/gary/
+      headers: { Depth: "1", Content-Type: "text/xml; charset=utf-8" }
+      body_file: dav/evolution-propfind-calendar.xml
+    expect:
+      status: 207
+      statuses:
+        "{{shared}}/": 200
+
+  - name: the privilege set has no write privilege
+    as: gary
+    request:
+      method: PROPFIND
+      path: "{{shared}}/"
+      headers: { Depth: "0", Content-Type: "text/xml; charset=utf-8" }
+      body: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:current-user-privilege-set/></D:prop></D:propfind>
+    expect:
+      status: 207
+      xpath:
+        - { path: "//{DAV:}privilege/{DAV:}read" }
+        - { path: "//{DAV:}privilege/{DAV:}write", count: 0 }
+        - { path: "//{DAV:}privilege/{DAV:}write-content", count: 0 }
+
+  - name: changing an event is refused
+    as: gary
+    request:
+      method: PUT
+      path: "{{shared}}/shared-event@acme.example.ics"
+      headers: { Content-Type: "text/calendar; charset=utf-8" }
+      ical: |
+        BEGIN:VCALENDAR
+        PRODID:-//Mozilla.org/NONSGML Mozilla Calendar V1.1//EN
+        VERSION:2.0
+        BEGIN:VEVENT
+        DTSTAMP:20270301T000000Z
+        UID:shared-event@acme.example
+        SUMMARY:Changed by a reader
+        DTSTART:20270304T090000Z
+        DTEND:20270304T100000Z
+        END:VEVENT
+        END:VCALENDAR
+    expect:
+      status: 403
+      body_contains: ["need-privileges"]
+
+  - name: the event is unchanged
+    as: gary
+    request:
+      method: GET
+      path: "{{shared}}/shared-event@acme.example.ics"
+    expect:
+      status: 200
+      body_contains: ["SUMMARY:Shared event"]
+      body_excludes: ["Changed by a reader"]

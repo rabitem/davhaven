@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<calendar-multiget xmlns="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:">
+  <D:prop>
+    <D:getetag/>
+    <calendar-data/>
+  </D:prop>
+  <D:href>/dav/calendars/acme/anna/work/standup.ics</D:href>
+  <D:href>/dav/calendars/acme/anna/work/deleted-meanwhile.ics</D:href>
+</calendar-multiget>
