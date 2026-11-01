@@ -60,6 +60,7 @@ when a generated document is out of date; regenerate it instead of editing it:
 | --- | --- |
 | `docs/configuration.md` | `cargo xtask config-docs` |
 | `docs/permission-matrix.md` | `cargo xtask matrix` |
+| `docs/problems.md` | `cargo xtask problems-docs` |
 | `docs/openapi.json`, `docs/contracts/` | `cargo xtask contracts` |
 
 The text of these documents comes from Rust doc comments and data files, so fix the source and regenerate.
@@ -73,7 +74,8 @@ The text of these documents comes from Rust doc comments and data files, so fix 
 - Time and randomness only through the `Clock` and `IdGenerator` ports; tests never sleep.
 - Every public item has rustdoc; user-facing behaviour is documented in `docs/`.
 - No `unwrap`, `expect`, `panic!`, `todo!` or `unimplemented!` outside tests; the only allowed stub is
-  `AppError::unsupported()` / `PortError::unsupported()`.
+  `AppError::unsupported()` / `PortError::unsupported()`. A release tag fails while shipped code still calls it
+  (`cargo xtask unsupported --deny`); a call that no user can reach carries `// unsupported-allowed: <reason>`.
 - New dependencies are declared once in `[workspace.dependencies]` and inherited with `workspace = true`. Prefer
   few, maintained, permissively licensed crates (`cargo deny` checks licences and advisories).
 - Nothing organisation-specific (names, URLs, hostnames, runner labels, branding) belongs in the repository.

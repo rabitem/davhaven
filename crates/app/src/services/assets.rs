@@ -52,6 +52,7 @@ pub trait AssetService: Send + Sync {
         _status: u16,
         _languages: &[Locale],
     ) -> AppResult<RenderedPage> {
+        // unsupported-allowed: AssetServiceImpl implements the method; the default serves test doubles.
         Err(AppError::unsupported())
     }
 }

@@ -365,6 +365,7 @@ pub trait PrincipalService: Send + Sync {
     /// As [`search`](Self::search); the default answers `Unsupported`.
     async fn find_principals(&self, ctx: &RequestContext, search: PrincipalSearch) -> AppResult<PrincipalSearchResult> {
         let _ = (ctx, search);
+        // unsupported-allowed: PrincipalServiceImpl implements the method; the default serves test doubles.
         Err(AppError::unsupported())
     }
 
@@ -412,6 +413,7 @@ pub trait PrincipalService: Send + Sync {
     /// `NotFound` when the principal no longer exists. The default answers `Unsupported`.
     async fn current(&self, ctx: &RequestContext) -> AppResult<PrincipalProps> {
         let _ = ctx;
+        // unsupported-allowed: PrincipalServiceImpl implements the method; the default serves test doubles.
         Err(AppError::unsupported())
     }
 

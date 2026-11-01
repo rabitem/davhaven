@@ -1,12 +1,12 @@
 //! Generated documents and their drift checks.
 //!
-//! Three documents are rendered by binaries of the workspace and committed: the configuration reference
-//! (`config-docs`), the permission matrix report (`matrix`) and the problem catalog (`problems-docs`). Until the
-//! generator of a document is registered, its command reports that there is nothing to generate and succeeds, so CI
-//! runs the drift-check jobs with their final names. The contract documents (`contracts`: OpenAPI, MCP tool and event
-//! schemas) have their own module, `contracts.rs`.
+//! Three documents are generated and committed: the configuration reference (`config-docs`), the permission matrix
+//! report (`matrix`) and the problem catalog (`problems-docs`). The contract documents (`contracts`: OpenAPI, MCP tool
+//! and event schemas) have their own module, `contracts.rs`.
 //!
-//! The documents are rendered by running the binary that owns what they describe, not by linking it into this tool:
+//! The problem catalog is data of `davhaven-wire`, which this tool links for the contract documents already, so it is
+//! rendered in process (`problems.rs`). The other two are rendered by running the binary that owns what they describe,
+//! not by linking it into this tool:
 //!
 //! * `config-docs` asks the server (`davhaven config reference` with every cargo feature on), because the
 //!   reference is rendered from the schemas of the configuration structures and of the plugins that are compiled in,
@@ -41,6 +41,7 @@ pub(crate) fn run(command: &str, check: bool) -> bool {
     match command {
         "config-docs" => generate(&Generated::CONFIG_REFERENCE, check),
         "matrix" => generate(&Generated::MATRIX_REPORT, check),
+        "problems-docs" => sync(command, |_| Ok(crate::problems::render()), check),
         _ => {
             let mode = if check { "check" } else { "generate" };
             print_line(format_args!(
@@ -122,9 +123,13 @@ fn workspace_root() -> Result<PathBuf, String> {
 
 /// Writes the document of `generated` or checks that it is current.
 fn generate(generated: &Generated, check: bool) -> bool {
-    let command = generated.command;
+    sync(generated.command, |root| generated.render(root), check)
+}
+
+/// Writes the document of `command`, as `render` produces it for the workspace root, or checks that it is current.
+fn sync(command: &str, render: impl FnOnce(&Path) -> Result<String, String>, check: bool) -> bool {
     let outcome = workspace_root().and_then(|root| {
-        let content = generated.render(&root)?;
+        let content = render(&root)?;
         let document = Document {
             path: documents(command),
             content,
@@ -186,9 +191,27 @@ mod tests {
     }
 
     #[test]
-    fn generators_that_are_not_registered_succeed_without_doing_anything() {
-        assert!(run("problems-docs", false));
-        assert!(run("problems-docs", true));
+    fn commands_without_a_generator_succeed_without_doing_anything() {
+        assert!(run("unregistered", false));
+        assert!(run("unregistered", true));
+    }
+
+    #[test]
+    fn the_committed_problem_catalog_is_the_rendered_one() {
+        assert!(
+            run("problems-docs", true),
+            "run `cargo xtask problems-docs` and commit docs/problems.md"
+        );
+        let committed = std::fs::read_to_string(workspace_root().unwrap().join("docs/problems.md")).unwrap();
+        assert_eq!(committed, crate::problems::render());
+    }
+
+    #[test]
+    fn a_stale_problem_catalog_fails_the_check_and_is_left_alone() {
+        let root = workspace_root().unwrap();
+        let before = std::fs::read(root.join("docs/problems.md")).unwrap();
+        assert!(!sync("problems-docs", |_| Ok("# Not the catalog\n".to_owned()), true));
+        assert_eq!(std::fs::read(root.join("docs/problems.md")).unwrap(), before);
     }
 
     /// A generator that runs `cargo` with `cargo_args` instead of a binary of the workspace.

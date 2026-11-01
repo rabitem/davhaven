@@ -9,8 +9,9 @@
 //! * `contracts` writes `docs/openapi.json`, `docs/contracts/mcp-tools.json` and `docs/contracts/events.schema.json`
 //!   from code; `matrix`, `config-docs` and `problems-docs` generate the other committed documents. With `--check`
 //!   they fail when the committed files differ from the generated ones.
-//! * `unsupported` lists the remaining `AppError::unsupported()` / `PortError::unsupported()` stubs (R5); with
-//!   `--deny` (release tags) any stub fails the command.
+//! * `unsupported` lists the `AppError::unsupported()` / `PortError::unsupported()` stubs in the code the server
+//!   binary links, without test code (R5); with `--deny` (release tags) any stub without an `unsupported-allowed:`
+//!   annotation fails the command.
 
 #![forbid(unsafe_code)]
 
@@ -18,6 +19,7 @@ mod arch;
 mod contracts;
 mod fuzz;
 mod generated;
+mod problems;
 mod unsupported;
 
 use std::fmt::Display;
@@ -204,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn a_command_without_a_generator_succeeds_through_the_dispatcher() {
+    fn the_problem_catalog_is_checked_through_the_dispatcher() {
         assert!(run(&args(&["problems-docs", "--check"])).unwrap());
     }
 }

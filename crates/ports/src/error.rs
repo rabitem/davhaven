@@ -300,8 +300,8 @@ impl PortError {
 
     /// The stub for a port method that is not implemented yet.
     ///
-    /// This is the only allowed stub (`ENGINEERING_RULES` R5): CI lists every remaining call, warns on pull
-    /// requests and fails release tags. An adapter that permanently lacks a capability reports
+    /// This is the only allowed stub (`ENGINEERING_RULES` R5): CI lists every remaining call in shipped code, warns
+    /// on pull requests and fails release tags unless the call carries an `unsupported-allowed:` annotation. An adapter that permanently lacks a capability reports
     /// [`PortErrorKind::Unsupported`] through [`PortError::new`] instead.
     pub fn unsupported() -> Self {
         Self::new(PortErrorKind::Unsupported, "not implemented")

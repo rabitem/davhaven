@@ -266,6 +266,7 @@ pub trait SchedulingService: Send + Sync {
         spec: &CalendarDataSpec,
     ) -> AppResult<Vec<InboxEntry>> {
         let _ = (ctx, inbox, paths, spec);
+        // unsupported-allowed: SchedulingServiceImpl implements the method; the default serves test doubles.
         Err(AppError::unsupported())
     }
 

@@ -106,6 +106,7 @@ pub trait AuthService: Send + Sync {
     /// `RateLimited` with the time to wait. The default is `Unsupported`.
     async fn charge_budget(&self, ctx: &RequestContext, class: BudgetClass) -> AppResult<()> {
         let _ = (ctx, class);
+        // unsupported-allowed: AuthServiceImpl implements the method; the default serves test doubles.
         Err(crate::error::AppError::unsupported())
     }
 
