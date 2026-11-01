@@ -10,6 +10,13 @@
 name: OpenAPI clients
 
 on:
+  # Pull requests too: a change of the document or of the client tools (Dependabot updates Orval and TypeScript) is
+  # proven before it is merged, not after.
+  pull_request:
+    paths:
+      - docs/openapi.json
+      - crates/api/clients/**
+      - .github/workflows/openapi-clients.yml
   push:
     branches: [main]
     paths:

@@ -43,8 +43,9 @@ echo "==> TypeScript: type-check the typescript-fetch client"
 
 echo "==> TypeScript: generate a fetch client with Orval and type-check it"
 "$orval" --input "$spec" --output target/orval/api.ts --client fetch
-"$tsc" --noEmit --strict --target ES2022 --module ESNext \
-  --moduleResolution Bundler --lib ES2022,DOM,DOM.Iterable --skipLibCheck target/orval/api.ts
+# A project file of its own (the same options, only Orval's output): TypeScript 7 refuses files on the command line next
+# to a tsconfig.json.
+"$tsc" -p tsconfig.orval.json
 
 echo "==> Java: the generated model reads and writes the documents as the server sends them"
 mvn --batch-mode --no-transfer-progress -q org.apache.maven.plugins:maven-dependency-plugin:3.8.1:build-classpath \
