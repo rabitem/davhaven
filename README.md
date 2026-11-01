@@ -8,8 +8,8 @@ invitations to internal and external attendees, and offers a management REST API
 Davhaven is generic: nothing in it is specific to one organisation. A deployment supplies its tenants, branding,
 templates and adapter choices through configuration and the management API.
 
-> **Status:** pre-1.0. There is no released version yet, so interfaces, configuration keys and the database schema
-> can still change. What is deliberately not supported, and why, is listed in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> **Status:** pre-1.0. The first release is 0.1.0 ([`CHANGELOG.md`](CHANGELOG.md)); until 1.0, interfaces, configuration
+> keys and the database schema can still change. What is deliberately not supported, and why, is listed in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 > Read the [operations runbook](docs/operations/runbook.md) before putting an instance in front of real users.
 
 ## Features
