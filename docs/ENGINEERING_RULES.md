@@ -46,7 +46,11 @@ with a foreign tenant.
 Typed errors per layer (`thiserror`): `StoreError`/`PortError` in ports, `IcalError`, `AppError` with
 `ErrorKind` and `Precondition`. Each protocol crate maps them exactly once through an exhaustively
 tested table (DAV status + precondition element, RFC 9457 problem, MCP result). Internal error text never reaches
-a client. The only allowed stub is `AppError::unsupported()` / `PortError::unsupported()`.
+a client. The only allowed stub is `AppError::unsupported()` / `PortError::unsupported()`; a release ships none that a
+user can reach. `xtask unsupported` scans the code the server binary links, without test code; a stub that ships but
+cannot be reached (the default of a service-trait method that every production implementation overrides) carries
+`// unsupported-allowed: <reason>` on its line or directly above it. A capability an adapter permanently lacks is
+`PortError::new(PortErrorKind::Unsupported, ..)`, not a stub.
 **(CI: lint set R17; `unsupported` job warns on PRs and fails release tags)**
 
 ## R6 Security by default

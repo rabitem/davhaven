@@ -213,6 +213,7 @@ pub trait SharingService: Send + Sync {
         paths: Vec<ResourcePath>,
     ) -> AppResult<Vec<NotificationView>> {
         let _ = (ctx, collection, paths);
+        // unsupported-allowed: SharingServiceImpl implements the method; the default serves test doubles.
         Err(AppError::unsupported())
     }
 
@@ -241,6 +242,7 @@ pub trait SharingService: Send + Sync {
         if preconditions == WritePrecondition::none() {
             self.delete_notification(ctx, path).await
         } else {
+            // unsupported-allowed: SharingServiceImpl implements the method; the default serves test doubles.
             Err(AppError::unsupported())
         }
     }

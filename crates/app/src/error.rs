@@ -147,7 +147,9 @@ impl AppError {
 
     /// The only allowed stub (`ENGINEERING_RULES` R5): the operation is not implemented yet.
     ///
-    /// CI lists every remaining call (`xtask unsupported`), warns on pull requests and fails release tags.
+    /// CI lists every remaining call in shipped code (`xtask unsupported`), warns on pull requests and fails release
+    /// tags unless the call carries an `unsupported-allowed:` annotation with a reason. An error that passes on what
+    /// an adapter or a library permanently lacks is `AppError::new(ErrorKind::Unsupported)` instead.
     pub const fn unsupported() -> Self {
         Self::new(ErrorKind::Unsupported)
     }
@@ -415,7 +417,8 @@ impl From<StoreError> for AppError {
             StoreError::InvalidData(_) => Self::invalid(SafeMessage::from_static(
                 "A value contains a character that cannot be stored.",
             )),
-            StoreError::Unsupported => Self::unsupported(),
+            // The store says it lacks the method (an additive method, ADR-0006): not a stub of this crate.
+            StoreError::Unsupported => Self::new(ErrorKind::Unsupported),
             StoreError::SerializationFailure | StoreError::Unavailable | StoreError::Timeout => Self::unavailable(),
             _ => Self::new(ErrorKind::Internal),
         };
@@ -455,7 +458,8 @@ impl AppError {
     /// [`ErrorContext::Scheduling`] for iTIP messages; `AppError::from` assumes [`ErrorContext::Store`].
     pub fn from_ical(error: IcalError, context: ErrorContext) -> Self {
         let mapped = match &error {
-            IcalError::Unsupported(_) => Self::unsupported(),
+            // A feature the iCalendar engine does not have: not a stub of this crate.
+            IcalError::Unsupported(_) => Self::new(ErrorKind::Unsupported),
             IcalError::Limit(LimitKind::TimeBudget) => Self::unavailable().with_public_message(
                 SafeMessage::from_static("The request took too long to process; try again later."),
             ),
