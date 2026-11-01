@@ -73,7 +73,7 @@ The management API is versioned (`/api/v1`), additive only within a version, and
 document generated from code and committed. MCP tool schemas, domain event schemas, the problem catalog and the
 permission-matrix report are generated and committed too. Breaking changes need a new API version or a new tool
 name. DAV behaviour follows the RFCs; deviations are documented in `docs/interop.md`.
-**(CI: `xtask contracts` and `xtask matrix` drift checks)**
+**(CI: `xtask contracts`, `xtask matrix` and `xtask problems-docs` drift checks)**
 
 ## R8 Observability
 Structured JSON `tracing` with request id, trace id, tenant id and principal id; never secrets, bodies,
@@ -96,8 +96,10 @@ A test needing Postgres fails, never skips, when `CI=true` and no database is co
 ## R10 Documentation
 Rustdoc on every public item. **(CI: `missing_docs` deny, rustdoc warnings are errors)** Every crate has a crate-level
 overview. Architecture decisions are ADRs in `docs/adr/`. User-facing behaviour is documented in `docs/` (API,
-configuration, interoperability, mail, templates, webhooks, operations, roadmap); a change that alters behaviour updates
-the page that describes it in the same pull request.
+problem catalog, configuration, interoperability, mail, templates, webhooks, operations, roadmap); a change that alters
+behaviour updates the page that describes it in the same pull request. The generated pages (`docs/openapi.json`,
+`docs/contracts/`, `docs/configuration.md`, `docs/permission-matrix.md`, `docs/problems.md`) change through their source
+and `cargo xtask`, never by hand. **(CI: `contracts`, `matrix`, `config-docs` and `problems-docs` drift checks)**
 
 ## R11 Dependencies
 Few, maintained, permissively licensed dependencies, declared once in `[workspace.dependencies]` with exact

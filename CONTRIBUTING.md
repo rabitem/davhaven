@@ -60,6 +60,7 @@ when a generated document is out of date; regenerate it instead of editing it:
 | --- | --- |
 | `docs/configuration.md` | `cargo xtask config-docs` |
 | `docs/permission-matrix.md` | `cargo xtask matrix` |
+| `docs/problems.md` | `cargo xtask problems-docs` |
 | `docs/openapi.json`, `docs/contracts/` | `cargo xtask contracts` |
 
 The text of these documents comes from Rust doc comments and data files, so fix the source and regenerate.

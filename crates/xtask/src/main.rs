@@ -19,6 +19,7 @@ mod arch;
 mod contracts;
 mod fuzz;
 mod generated;
+mod problems;
 mod unsupported;
 
 use std::fmt::Display;
@@ -205,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn a_command_without_a_generator_succeeds_through_the_dispatcher() {
+    fn the_problem_catalog_is_checked_through_the_dispatcher() {
         assert!(run(&args(&["problems-docs", "--check"])).unwrap());
     }
 }

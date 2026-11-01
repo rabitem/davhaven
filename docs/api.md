@@ -12,7 +12,7 @@ document differ, the document is right: please report the difference.
 | Every operation, its parameters, bodies and responses | [`openapi.json`](openapi.json) |
 | The scopes of an operation | the `x-required-scope` extension of the operation (any one of the scopes suffices) |
 | The domain operations behind a route | the `x-davhaven-operation` extension |
-| The problem codes | the `code` of a problem document; the `ProblemCode` enumeration in [`openapi.json`](openapi.json) lists them |
+| The problem codes | the `code` of a problem document; [`problems.md`](problems.md) is the catalog (status, type, title and when each happens), and the `ProblemCode` enumeration in [`openapi.json`](openapi.json) lists them |
 | Webhook payloads and signing | [`webhooks.md`](webhooks.md) and [`contracts/events.schema.json`](contracts/events.schema.json) |
 
 ## Authentication and scopes
@@ -313,7 +313,7 @@ Failures are RFC 9457 documents (`application/problem+json`):
 ```
 
 `code` is stable and the thing to branch on, and its value is the kebab-case catalog code (`validation-failed`),
-which is what the `ProblemCode` enumeration of the document lists; `detail` and `errors[].message` are for people and
+which is what the `ProblemCode` enumeration of the document lists and [`problems.md`](problems.md) describes row by row; `detail` and `errors[].message` are for people and
 may change. Internal error text never reaches a client. A disabled feature (a provider that is switched off, feeds a
 tenant disabled) answers 409 `feature-not-enabled`; the routes always exist so that the document does not depend on
 the build. 429 and 503 carry `Retry-After`.

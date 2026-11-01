@@ -27,7 +27,7 @@ const PROBLEM_CODE_DESCRIPTION: &str = "A row of the problem catalog: the stable
 macro_rules! problem_codes {
     (
         $(
-            $(#[$meta:meta])*
+            $(#[doc = $doc:literal])*
             $variant:ident => {
                 code: $code:literal,
                 title: $title:literal,
@@ -48,7 +48,7 @@ macro_rules! problem_codes {
         /// would publish the Rust variant names instead of the codes a client receives.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
         pub enum ProblemCode {
-            $( $(#[$meta])* #[serde(rename = $code)] $variant ),+
+            $( $(#[doc = $doc])* #[serde(rename = $code)] $variant ),+
         }
 
         impl PartialSchema for ProblemCode {
@@ -80,6 +80,7 @@ macro_rules! problem_codes {
                             dav: $dav,
                             element: $element,
                             retryable: $retryable,
+                            description: concat!($($doc, "\n"),*),
                         }
                     ),+
                 }
@@ -96,6 +97,8 @@ struct Row {
     dav: u16,
     element: Option<&'static str>,
     retryable: bool,
+    /// The doc comment of the variant, one line per doc line.
+    description: &'static str,
 }
 
 problem_codes! {
@@ -238,6 +241,17 @@ impl ProblemCode {
     /// Whether an MCP client may repeat the same tool call later (reported in the tool result).
     pub const fn retryable(self) -> bool {
         self.row().retryable
+    }
+
+    /// When the problem happens: the documentation of the row, on one line (the text of `docs/problems.md`).
+    pub fn description(self) -> String {
+        self.row()
+            .description
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     /// The problem type URI: `urn:davhaven:problem:{code}`.
@@ -405,6 +419,28 @@ mod tests {
 
     fn href() -> Href {
         Href::parse("/dav/calendars/acme/anna/work/x.ics").unwrap()
+    }
+
+    #[test]
+    fn every_row_says_when_it_happens_on_one_line() {
+        for code in ProblemCode::ALL {
+            let description = code.description();
+            assert!(description.ends_with('.'), "{}: {description}", code.code());
+            assert!(
+                !description.contains('\n') && !description.contains("  "),
+                "{description}"
+            );
+        }
+        assert_eq!(
+            ProblemCode::NotFound.description(),
+            "The resource does not exist or is not visible to the caller (including other tenants' resources)."
+        );
+        // A doc comment of several lines is joined with single spaces.
+        assert!(
+            ProblemCode::NameReserved
+                .description()
+                .starts_with("The name of a principal write belongs to a deleted principal that has not been purged yet (a write without `If-None-Match: *`;")
+        );
     }
 
     #[test]
