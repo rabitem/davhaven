@@ -93,9 +93,9 @@ lot.
 
 | Workflow | When | What it does |
 | --- | --- | --- |
-| `ci.yml` | pull requests, merge queue, `main` | `checks` (formatting, clippy with and without default features, each feature of the server, rustdoc with warnings as errors, `cargo xtask arch-check`, unused dependencies, image pins, drift of the generated documents, `cargo deny`, actionlint, zizmor), then `test` (nextest and doctests on PostgreSQL with `TZ=Pacific/Chatham`), then on `main` `release` and `coverage`. A newer push to a pull request cancels the run in progress. |
+| `ci.yml` | pull requests, merge queue, `main` | `checks` (formatting, clippy with and without default features, each feature of the server, rustdoc with warnings as errors, `cargo xtask arch-check`, unused dependencies, image pins, drift of the generated documents, `cargo deny`, actionlint, zizmor) in four parallel `check` groups, and next to them `test` (nextest in two shards and the doctests on PostgreSQL with `TZ=Pacific/Chatham`); the `checks` and `test` runs sum them up. Then, on `main`, `release` and `coverage`. A newer push to a pull request cancels the run in progress. |
 | `release.yml` | called by `ci.yml` on `main` after `checks` and `test` succeeded; `v*` tags; manual runs (a dry run) | Builds the image once, smoke-tests that image (`scripts/image-smoke.sh`), then pushes it to GHCR. A failing smoke test pushes nothing. No pull request builds the image. If the repository variable `DEPLOY_DISPATCH_REPO` is set, it also notifies that repository of the new digest. |
-| `nightly.yml` | every night | Property tests with 20000 cases, repeated runs of the suite, the latest PostgreSQL, a `cargo update` canary, the feature powerset, new advisories and fuzzing. The PostgreSQL matrices run in full (`CONFORMANCE_FULL=1`). |
+| `nightly.yml` | every night | Property tests with 20000 cases, repeated runs of the suite, the latest and the oldest supported PostgreSQL (15), a `cargo update` canary, the feature powerset, new advisories and fuzzing. The PostgreSQL matrices run in full (`CONFORMANCE_FULL=1`). |
 | `openapi-clients.yml` | `main`, when the OpenAPI document changes | Client generation smoke test. |
 | `ghcr-retention.yml` | weekly | Image retention. |
 | `image-pins.yml` | weekly | Compares the digests of the pinned container images with their registries. |

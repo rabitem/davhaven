@@ -1,14 +1,14 @@
-# Dependency updates (ENGINEERING_RULES R11, PLAN 4.5). Exact versions live in the root Cargo.toml.
+# Dependency updates (ENGINEERING_RULES R11, PLAN 4.5). Exact versions live in the root Cargo.toml. Every pull request runs the
+# whole CI, so updates come grouped and few at a time: the workspace weekly, everything else monthly.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /crates/api/clients
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps)"
     groups:
@@ -19,11 +19,10 @@ updates:
   - package-ecosystem: maven
     directory: /crates/api/clients
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps)"
     groups:
@@ -38,7 +37,7 @@ updates:
       day: monday
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     commit-message:
       prefix: "chore(deps)"
     groups:
@@ -52,11 +51,10 @@ updates:
   - package-ecosystem: cargo
     directory: /crates/ical/fuzz
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "chore(deps)"
     groups:
@@ -69,11 +67,10 @@ updates:
   - package-ecosystem: cargo
     directory: /crates/dav/fuzz
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "chore(deps)"
     groups:
@@ -85,8 +82,8 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
+    open-pull-requests-limit: 2
     cooldown:
       default-days: 7
     commit-message:
@@ -99,8 +96,8 @@ updates:
   - package-ecosystem: docker
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
+    open-pull-requests-limit: 2
     cooldown:
       default-days: 7
     commit-message:

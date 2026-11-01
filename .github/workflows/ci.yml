@@ -1,11 +1,11 @@
-# Pull request and main-branch checks (PLAN 3.7), in few jobs because runner time is the scarce resource: `checks`
-# (everything that needs no database, in one build cache), then `test` (nextest and the doctests on PostgreSQL), then, on
-# main, `release` (the image is built, smoke-tested and pushed: release.yml) and `coverage`. The jobs run one after the
-# other, so a run holds one runner at a time (two at the end: the release and the coverage), and a run whose checks fail
-# does not start the tests. The release runs only after the checks and the tests of the same commit succeeded. No pull
-# request builds the image; the smoke test of the release is the gate, and when it fails nothing is pushed. Version tags
-# do not run this workflow (it restores caches, which a workflow that publishes must not do): release.yml starts for a
-# tag and checks that this workflow succeeded for the tagged commit.
+# Pull request and main-branch checks (PLAN 3.7). The checks that need no database run in four groups side by side (`check`:
+# lint, docs, hack, supply-chain) and the tests in two shards next to them (`test-shard`: nextest and the doctests on
+# PostgreSQL); `checks` and `test` sum them up into the two check runs that branch protection and release.yml wait for. On
+# main, `release` (the image is built, smoke-tested and pushed: release.yml) and `coverage` follow once both succeeded. No pull
+# request builds the image; the smoke test of the release is the gate, and when it fails nothing is pushed. Version tags do not
+# run this workflow (it restores caches, which a workflow that publishes must not do): release.yml starts for a tag and checks
+# that this workflow succeeded for the tagged commit. The parallel layout trades runner minutes for wall-clock time; on cold
+# caches every job builds the workspace once.
 #
 # Where the jobs run: `vars.CI_RUNS_ON` names runner labels as a JSON array (for example
 # `["self-hosted","Linux","X64","my-label"]`). Runners chosen this way are trusted infrastructure of the deployment: they
@@ -44,15 +44,21 @@ defaults:
     shell: bash
 
 jobs:
-  checks:
-    name: checks
+  # The checks that need no database, in four groups that run side by side. Every check of a group runs even when an
+  # earlier one failed, so that one run shows everything that is wrong.
+  check:
+    name: check (${{ matrix.group }})
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
     timeout-minutes: 45
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [lint, docs, hack, supply-chain]
     container:
       image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
-      # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
+      # The hosted fallback has two CPUs; leave RAM for the runner.
       options: >-
         ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
         --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
@@ -62,8 +68,10 @@ jobs:
           persist-credentials: false
       - name: Install toolchain (rust-toolchain.toml)
         run: rustup toolchain install
+      # One cache per group: each group builds something else (clippy, rustdoc, cargo hack, the generators).
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
+          key: ${{ matrix.group }}
           workspaces: ". -> ../../../ci-target"
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
@@ -71,7 +79,7 @@ jobs:
           tool: cargo-deny,cargo-hack,cargo-machete,zizmor
       # actionlint runs shellcheck on the scripts of the workflows when it finds it.
       - name: Install actionlint and shellcheck
-        id: tools
+        if: ${{ matrix.group == 'supply-chain' }}
         env:
           ACTIONLINT_VERSION: 1.7.12
           ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
@@ -83,73 +91,76 @@ jobs:
           tar --extract --gzip --file "${RUNNER_TEMP}/${archive}" --directory /usr/local/bin actionlint
           apt-get update --quiet
           apt-get install --yes --quiet --no-install-recommends shellcheck
-      # Every check below runs even when an earlier one failed, so that one run shows everything that is wrong.
+      # lint: formatting, clippy, the fuzz packages.
       - name: fmt
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'lint' }}
         run: cargo fmt --all -- --check
       - name: clippy (all features)
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'lint' }}
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - name: clippy (no default features)
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'lint' }}
         run: cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings
       - name: fuzz targets still compile against the crates they exercise
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'lint' }}
         run: cargo check --manifest-path crates/ical/fuzz/Cargo.toml --locked
       - name: DAV fuzz targets still compile against the crate they exercise
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'lint' }}
         run: cargo check --manifest-path crates/dav/fuzz/Cargo.toml --locked
-      - name: Each feature of the server
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
-        run: cargo hack check -p davhaven-server --each-feature --locked
+      # docs: rustdoc, the layering rules and the generated documents.
       - name: rustdoc (warnings are errors)
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'docs' }}
         env:
           RUSTDOCFLAGS: -Dwarnings
         run: cargo doc --workspace --no-deps --all-features --locked
       - name: Layering rules, manifest hygiene and fuzz targets
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'docs' }}
         run: cargo xtask arch-check
+      - name: OpenAPI, MCP tool and event schemas
+        if: ${{ !cancelled() && matrix.group == 'docs' }}
+        run: cargo xtask contracts --check
+      - name: Permission matrix report
+        if: ${{ !cancelled() && matrix.group == 'docs' }}
+        run: cargo xtask matrix --check
+      - name: Configuration reference
+        if: ${{ !cancelled() && matrix.group == 'docs' }}
+        run: cargo xtask config-docs --check
+      - name: Problem catalog
+        if: ${{ !cancelled() && matrix.group == 'docs' }}
+        run: cargo xtask problems-docs --check
+      - name: Remaining unsupported() stubs (warning; release tags fail)
+        if: ${{ !cancelled() && matrix.group == 'docs' }}
+        run: cargo xtask unsupported
+      # hack: each feature of the server, unused dependencies, image pins.
+      - name: Each feature of the server
+        if: ${{ !cancelled() && matrix.group == 'hack' }}
+        run: cargo hack check -p davhaven-server --each-feature --locked
       # A dependency that no source of its crate names (the fuzz packages have their own manifests).
       - name: Unused dependencies
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'hack' }}
         run: cargo machete --with-metadata . crates/ical/fuzz crates/dav/fuzz
       # The images of the jobs are pinned by digest and Dependabot does not read them: the same image carries the same digest in
       # every file, and the weekly workflow image-pins.yml compares the digests with the registries.
       - name: Container image pins
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'hack' }}
         run: |
           bash scripts/image-pins.sh --self-test
           bash scripts/image-pins.sh agree
-      - name: OpenAPI, MCP tool and event schemas
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
-        run: cargo xtask contracts --check
-      - name: Permission matrix report
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
-        run: cargo xtask matrix --check
-      - name: Configuration reference
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
-        run: cargo xtask config-docs --check
-      - name: Problem catalog
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
-        run: cargo xtask problems-docs --check
-      - name: Remaining unsupported() stubs (warning; release tags fail)
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
-        run: cargo xtask unsupported
+      # supply-chain: dependencies and the workflows themselves.
       - name: Advisories, bans, licenses and sources
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'supply-chain' }}
         run: cargo deny --all-features --locked check
       - name: Advisories, bans, licenses and sources of the fuzz package (its own lock file)
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'supply-chain' }}
         run: cargo deny --manifest-path crates/ical/fuzz/Cargo.toml --locked check
       - name: Advisories, bans, licenses and sources of the DAV fuzz package (its own lock file)
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'supply-chain' }}
         run: cargo deny --manifest-path crates/dav/fuzz/Cargo.toml --locked check
       - name: Lint workflows (actionlint)
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'supply-chain' }}
         run: actionlint -color
       - name: Audit workflows and Dependabot configuration (zizmor)
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        if: ${{ !cancelled() && matrix.group == 'supply-chain' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: zizmor --format=github .
@@ -159,9 +170,28 @@ jobs:
         if: ${{ always() }}
         run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
 
-  test:
-    name: test
-    needs: [checks]
+  # The single check run named `checks` that release.yml (for tags) and a branch protection rule wait for: it succeeds when
+  # every group of `check` did.
+  checks:
+    name: checks
+    needs: [check]
+    if: ${{ always() }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every check group succeeded
+        env:
+          RESULT: ${{ needs.check.result }}
+        run: test "${RESULT}" = success
+
+  # nextest in two shards that run next to the checks; each shard builds the tests and runs half of them (hash partition).
+  test-shard:
+    name: test (shard ${{ matrix.shard }}/2)
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
     timeout-minutes: 60
     permissions:
@@ -199,27 +229,46 @@ jobs:
           persist-credentials: false
       - name: Install toolchain (rust-toolchain.toml)
         run: rustup toolchain install
+      # Both shards build the same tests, so they share one cache, which the first shard saves.
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
+          key: test
           workspaces: ". -> ../../../ci-target"
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' && matrix.shard == 1 }}
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-nextest
       # A test that hangs is killed after three minutes (.config/nextest.toml); the job timeout is the outer bound.
       - name: Tests (nextest)
-        run: cargo nextest run --workspace --all-features --locked
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: cargo nextest run --workspace --all-features --locked --partition "hash:${SHARD}/2"
       - name: Doctests
+        if: ${{ matrix.shard == 1 }}
         run: cargo test --workspace --all-features --locked --doc
       - name: Hand the workspace back to the runner user
         if: ${{ always() }}
         run: chown -R "$(stat -c '%u:%g' "${GITHUB_WORKSPACE%/*}")" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}"
 
+  # The single check run named `test` that release.yml (for tags) and a branch protection rule wait for.
+  test:
+    name: test
+    needs: [test-shard]
+    if: ${{ always() }}
+    runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every shard succeeded
+        env:
+          RESULT: ${{ needs.test-shard.result }}
+        run: test "${RESULT}" = success
+
   # Main only, after the tests: the instrumented build is the most expensive one, so it never runs for a pull request.
   coverage:
     name: coverage
     needs: [test]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.test.result == 'success' }}
     runs-on: ${{ fromJSON((github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]') && '["ubuntu-latest"]' || vars.CI_RUNS_ON || '["ubuntu-latest"]') }}
     timeout-minutes: 60
     permissions:
@@ -279,8 +328,8 @@ jobs:
   # (release.yml). It does not wait for the coverage.
   release:
     name: release
-    needs: [test]
-    if: ${{ github.event_name == 'push' }}
+    needs: [checks, test]
+    if: ${{ github.event_name == 'push' && needs.checks.result == 'success' && needs.test.result == 'success' }}
     # What the called workflow may use: its gate job for tags reads check runs, its image job writes packages.
     permissions:
       checks: read
