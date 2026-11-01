@@ -1,6 +1,6 @@
 # ADR-0016: Calendar providers: the OAuth flow, mirror calendars and the pull sync engine
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-28
 - Scope: PLAN 1.1 (providers), 2.4 (`external_accounts`, `oauth_states`), 2.10 (OAuth), 2.11 (`external_account.sync_failed`);
   R1, R2, R6, R8; crates `provider-google`, `provider-microsoft`, `provider-fake`, `app`

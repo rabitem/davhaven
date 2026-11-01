@@ -1,6 +1,6 @@
 # ADR-0014: The MCP server: stateless JSON transport, judgement per call, and what the application does for it
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-26
 - Scope: PLAN 2.5, 2.6, 2.12, 3.2; R1, R2, R6, R9, R14; crate `davhaven-mcp`
 

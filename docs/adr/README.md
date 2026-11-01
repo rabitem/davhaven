@@ -18,6 +18,6 @@ Decisions that shape more than one crate are recorded here. A new ADR gets the n
 | [0011](0011-api-contract-in-components.md) | The API contract is built from components; additions of the HTTP edge | accepted |
 | [0012](0012-authentication-failures-credential-format-and-fenced-idempotency.md) | Authentication failures, the credential format and fenced idempotency | accepted |
 | [0013](0013-server-assembly-configuration-mapping-and-operations.md) | Server assembly, the mapping of configuration to adapters, and operations | accepted |
-| [0014](0014-mcp-server-transport-judgement-and-budgets.md) | The MCP server: stateless JSON transport, judgement per call, and what the application does for it | proposed |
-| [0015](0015-principal-tokens-for-service-principals-rehash-on-use-and-app-password-length.md) | Principal tokens for service principals, re-hash on use, and the secret length of app passwords | proposed |
-| [0016](0016-calendar-providers-oauth-flow-mirror-calendars-and-pull-sync.md) | Calendar providers: the OAuth flow, mirror calendars and the pull sync engine | proposed |
+| [0014](0014-mcp-server-transport-judgement-and-budgets.md) | The MCP server: stateless JSON transport, judgement per call, and what the application does for it | accepted |
+| [0015](0015-principal-tokens-for-service-principals-rehash-on-use-and-app-password-length.md) | Principal tokens for service principals, re-hash on use, and the secret length of app passwords | accepted |
+| [0016](0016-calendar-providers-oauth-flow-mirror-calendars-and-pull-sync.md) | Calendar providers: the OAuth flow, mirror calendars and the pull sync engine | accepted |
