@@ -4,7 +4,7 @@
   "private": true,
   "description": "The tools of the client generation smoke (smoke.sh), pinned with package-lock.json. Nothing from here is published.",
   "devDependencies": {
-    "orval": "8.44.0",
+    "orval": "8.45.0",
     "typescript": "5.9.3"
   }
 }
