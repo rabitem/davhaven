@@ -762,13 +762,69 @@
       }
     },
     {
+      "id": 21,
+      "type": "timeseries",
+      "title": "PostgreSQL pool",
+      "description": "Runtime pool per instance: non-idle connections sampled every second, and adapter acquisitions in progress (including connection opening and validation).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "davhaven_db_pool_in_use{job=\"$job\", instance=~\"$instance\"}",
+          "legendFormat": "{{instance}} in use",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "davhaven_db_pool_waiting{job=\"$job\", instance=~\"$instance\"}",
+          "legendFormat": "{{instance}} acquiring",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
       "id": 17,
       "type": "row",
       "title": "Workers and retention",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 43,
+        "y": 51,
         "w": 24,
         "h": 1
       },
@@ -785,7 +841,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 44,
+        "y": 52,
         "w": 8,
         "h": 8
       },
@@ -829,7 +885,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 44,
+        "y": 52,
         "w": 8,
         "h": 8
       },
@@ -873,7 +929,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 44,
+        "y": 52,
         "w": 8,
         "h": 8
       },
