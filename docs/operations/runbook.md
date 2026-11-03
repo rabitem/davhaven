@@ -320,6 +320,8 @@ addresses. The `X-Request-Id` of a response is the key to the log line and to th
 | `davhaven_http_request_duration_seconds` | histogram | `surface`, `method`, `route` | Request latency |
 | `davhaven_port_calls_total` | counter | `port`, `adapter`, `op`, `outcome` | Calls to every adapter |
 | `davhaven_port_call_duration_seconds` | histogram | `port`, `adapter`, `op` | Adapter latency |
+| `davhaven_db_pool_in_use` | gauge | | Runtime PostgreSQL connections not idle, sampled every second by `postgres_pool_metrics` |
+| `davhaven_db_pool_waiting` | gauge | | Runtime adapter acquisitions in progress, including opening and validating connections; excludes `BEGIN` and query execution |
 | `davhaven_auth_failures_total` | counter | `mechanism`, `reason` | Refused credentials |
 | `davhaven_budget_refusals_total` | counter | `class` (`mcp_read`, `mcp_write`) | Tool calls of MCP tokens refused for being over their budget (the audit log holds one `rate_limit.tripped` record per token, budget and minute) |
 | `davhaven_outbox_pending` / `_in_flight` | gauge | | Messages waiting / being handled |
@@ -339,8 +341,14 @@ addresses. The `X-Request-Id` of a response is the key to the log line and to th
 | `davhaven_profile_signing_certificate_expiry_timestamp_seconds` | gauge | | The end of the validity (`notAfter`) of the first certificate of `[security.profile_signing]` as the server uses it now, in unix seconds. Follows a renewal within a minute; **absent** while profile signing is off ([`keys.md`](keys.md#the-certificate-that-signs-apple-profiles)) |
 | `davhaven_provider_sync_total` | counter | `provider`, `outcome` | Pulls of provider accounts (`pulled`, `failed`, `skipped`: not due, held by another worker, switched off) |
 
-No metric carries a tenant label (`observability.metrics.tenant_label` is reserved, and `config check` refuses `true`). The database
-connection pool is not exported yet; watch the `database` port metrics and the connection count on the database side.
+No metric carries a tenant label (`observability.metrics.tenant_label` is reserved, and `config check` refuses `true`).
+The pool gauges describe the PostgreSQL runtime pool of this instance, including tenant and system transactions, readiness
+and role checks. They exclude the separate pools of migrations and CLI commands and are absent with the memory store.
+Pending acquisitions are removed on success, error, timeout or request cancellation. An idle pool reports zero; an acquisition
+can briefly count as waiting even when capacity is available, while SQLx validates or opens its connection.
+In-use is a sample of SQLx's pool size minus its idle count (the two reads are not atomic), so it follows asynchronous
+connection return and rollback on the next worker pass. It includes direct acquisitions through `PgDatabase::pool()`;
+those bypass the pending-acquisition gauge. The dashboard's PostgreSQL pool panel shows both series per instance.
 
 **Traces** are exported over plain OTLP/gRPC when `observability.otlp.endpoint` is set to the collector's gRPC port
 (`http://otel-collector:4317`). Every request is a server span named after the method and the route template, whose parent
