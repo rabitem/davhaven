@@ -61,7 +61,7 @@ use crate::calendars::{NewCalendar, provision};
 use crate::error::{AppError, AppResult, SafeMessage};
 use crate::paging;
 use crate::services::{CallbackParams, ExternalAccountService, PageRequest, RenderedPage};
-use crate::sync_engine::SyncState;
+use crate::sync_engine::{SyncState, error_code};
 use crate::wiring::AppCore;
 
 /// The providers the project ships. A deployment whose build lacks one still lists it, as switched off.
@@ -453,6 +453,7 @@ fn field_problem(pointer: &'static str, code: &'static str, text: &'static str) 
 }
 
 fn view(account: &ExternalAccount, principal: PrincipalName) -> ExternalAccountView {
+    let sync = SyncState::read(&account.sync_state);
     ExternalAccountView {
         id: account.id,
         principal_id: account.principal_id,
@@ -462,6 +463,9 @@ fn view(account: &ExternalAccount, principal: PrincipalName) -> ExternalAccountV
         mirror_calendar_id: account.mirror_calendar_id,
         status: account.status,
         last_error: account.last_error.clone(),
+        last_error_code: account.last_error.as_deref().and_then(error_code).map(str::to_owned),
+        last_sync_at: sync.last_sync_at,
+        next_sync_at: sync.next_sync_at,
         created_at: account.created_at,
         updated_at: account.updated_at,
     }

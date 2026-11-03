@@ -9,6 +9,28 @@ fn json_document() -> serde_json::Value {
     serde_json::to_value(document()).unwrap()
 }
 
+#[test]
+fn external_account_sync_metadata_is_optional_and_times_are_date_time_strings() {
+    let document = json_document();
+    let schema = &document["components"]["schemas"]["ExternalAccountView"];
+    let required = schema["required"].as_array().unwrap();
+    for field in ["last_sync_at", "next_sync_at", "last_error_code"] {
+        assert!(
+            !required.iter().any(|name| name == field),
+            "{field} must remain optional"
+        );
+        let property = &schema["properties"][field];
+        assert_eq!(
+            property["type"],
+            serde_json::json!(["string", "null"]),
+            "{field}: {property}"
+        );
+        if field != "last_error_code" {
+            assert_eq!(property["format"], "date-time", "{field}: {property}");
+        }
+    }
+}
+
 /// Every `(method, path, operationId)` of the document.
 fn registered(document: &serde_json::Value) -> BTreeSet<(String, String, String)> {
     let mut found = BTreeSet::new();

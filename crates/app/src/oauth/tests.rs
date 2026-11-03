@@ -2,11 +2,98 @@
 //! callback, the account and its mirror, the disconnection, who may do it, which tenant it reaches) runs against the in-memory
 //! store in `davhaven-it` (`providers`), with the fake provider.
 
+use chrono::DateTime;
 use davhaven_domain::{CalendarSlug, ErrorKind};
 use uuid::Uuid;
 
 use super::*;
 use crate::outbox::fixture::Fixture;
+
+fn external_account(sync_state: serde_json::Value, last_error: Option<&str>) -> ExternalAccount {
+    ExternalAccount {
+        id: ExternalAccountId::from_uuid(Uuid::from_u128(1)),
+        tenant_id: TenantId::from_uuid(Uuid::from_u128(2)),
+        principal_id: PrincipalId::from_uuid(Uuid::from_u128(3)),
+        provider: "fake".to_owned(),
+        account_ref: "anna@example.org".to_owned(),
+        sealed_tokens: b"private-sealed-tokens".to_vec(),
+        mirror_calendar_id: None,
+        sync_state,
+        status: ExternalAccountStatus::Active,
+        last_error: last_error.map(str::to_owned),
+        created_at: DateTime::UNIX_EPOCH,
+        updated_at: DateTime::UNIX_EPOCH,
+        version: 1,
+    }
+}
+
+#[test]
+fn account_views_expose_public_sync_times_without_private_state() {
+    let account = external_account(
+        serde_json::json!({
+            "calendar": "private-calendar-id",
+            "cursor": "private-provider-cursor",
+            "lease_until": "2027-01-05T10:01:00Z",
+            "last_sync_at": "2027-01-05T09:45:00Z",
+            "next_sync_at": "2027-01-05T10:00:00Z",
+            "failures": 2,
+        }),
+        Some("provider_unavailable: the provider could not be reached; it is tried again"),
+    );
+    let shown = view(&account, PrincipalName::parse("anna").unwrap());
+    let json = serde_json::to_value(shown).unwrap();
+    assert_eq!(json["last_sync_at"], "2027-01-05T09:45:00Z");
+    assert_eq!(json["next_sync_at"], "2027-01-05T10:00:00Z");
+    assert_eq!(json["last_error_code"], "provider_unavailable");
+    assert_eq!(json["last_error"], account.last_error.as_deref().unwrap());
+    let text = json.to_string();
+    for private in ["private-", "sync_state", "lease_until", "failures", "sealed_tokens"] {
+        assert!(!text.contains(private), "{text}");
+    }
+}
+
+#[test]
+fn legacy_and_unreadable_sync_state_have_no_reported_times() {
+    for state in [
+        serde_json::Value::Null,
+        serde_json::json!({}),
+        serde_json::json!({"cursor": "old-cursor"}),
+        serde_json::json!({"last_sync_at": "invalid", "next_sync_at": "2027-01-05T10:00:00Z"}),
+        serde_json::json!({"last_sync_at": "2027-01-05T09:45:00Z", "failures": "invalid"}),
+    ] {
+        let account = external_account(state.clone(), None);
+        let shown = view(&account, PrincipalName::parse("anna").unwrap());
+        assert_eq!(shown.last_sync_at, None, "{state}");
+        assert_eq!(shown.next_sync_at, None, "{state}");
+        assert_eq!(shown.last_error_code, None);
+    }
+}
+
+#[test]
+fn only_known_error_prefixes_become_public_codes() {
+    for (message, expected) in [
+        (Some("auth_revoked: connect again"), Some("auth_revoked")),
+        (Some("provider_rejected: refused"), Some("provider_rejected")),
+        (Some("provider_unavailable: down"), Some("provider_unavailable")),
+        (Some("too_large: narrow the window"), Some("too_large")),
+        (Some("mirror_missing: connect again"), Some("mirror_missing")),
+        (Some("internal: see the log"), Some("internal")),
+        (
+            Some("principal_deleted: the principal was deleted"),
+            Some("principal_deleted"),
+        ),
+        (Some("unknown: private provider detail"), None),
+        (Some("provider_unavailable_extra: private provider detail"), None),
+        (Some("provider_unavailable"), None),
+        (Some(""), None),
+        (None, None),
+    ] {
+        let account = external_account(serde_json::json!({}), message);
+        let shown = view(&account, PrincipalName::parse("anna").unwrap());
+        assert_eq!(shown.last_error_code.as_deref(), expected, "{message:?}");
+        assert_eq!(shown.last_error.as_deref(), message, "the existing error is retained");
+    }
+}
 
 #[test]
 fn a_mirror_is_named_after_the_provider_and_the_account_in_printable_text_of_bounded_length() {

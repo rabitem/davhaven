@@ -579,6 +579,10 @@ The resource list is in F0.10. Key semantics:
 * **Changes feed** `GET …/calendars/{calendar}/changes?since=` uses the DAV sync token.
 * **OAuth**: `POST …/external-accounts {provider, principal}` → `{authorization_url}`; state (single use, 10 min,
   bound to tenant/principal/provider) and sealed PKCE verifier in `oauth_states`; callback in `web`.
+  The account list includes optional `last_sync_at` (last successful pull since the latest connection), `next_sync_at`
+  (recorded due time, subject to provider/principal availability and leases) and `last_error_code` (an open set of reason
+  strings beside the existing `last_error`). No cursor, lease or sealed token is exposed; absent or unreadable sync state
+  omits the timestamps. Reconnection clears the times and error until the next pull.
 
 ### 2.11 Domain events and webhooks
 
