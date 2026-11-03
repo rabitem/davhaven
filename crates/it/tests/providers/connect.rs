@@ -387,6 +387,9 @@ async fn connecting_the_same_account_again_replaces_its_tokens_and_keeps_its_mir
     assert_eq!(again["mirror_calendar_id"], first["mirror_calendar_id"]);
     assert_eq!(again["status"], "active");
     assert!(again.get("last_error").is_none(), "{again}");
+    for field in ["last_sync_at", "next_sync_at", "last_error_code"] {
+        assert!(again.get(field).is_none(), "reconnection clears {field}: {again}");
+    }
     assert_eq!(world.accounts().await.len(), 1);
     assert_eq!(
         world
