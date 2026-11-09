@@ -77,10 +77,10 @@ chrono-tz = { version = "=0.10.4", features = ["serde"] }
 humantime-serde = "=1.1.1"
 ipnet = { version = "=2.12.2", features = ["serde"] }
 lettre = { version = "=0.11.23", default-features = false, features = ["builder"] }
-minijinja = { version = "=3.0.3", features = ["fuel", "json", "loop_controls", "serde", "urlencode"] }
+minijinja = { version = "=3.0.5", features = ["fuel", "json", "loop_controls", "serde", "urlencode"] }
 percent-encoding = "=2.3.2"
 quick-xml = "=0.42.0"
-rmcp = { version = "=3.7.0", default-features = false, features = ["macros", "schemars", "server", "transport-streamable-http-server"] }
+rmcp = { version = "=3.8.0", default-features = false, features = ["macros", "schemars", "server", "transport-streamable-http-server"] }
 rrule = "=0.14.0"
 url = { version = "=2.5.8", features = ["serde"] }
 uuid = { version = "=1.29.0", features = ["serde", "v5", "v7"] }
