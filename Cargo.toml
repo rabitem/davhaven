@@ -63,9 +63,9 @@ tower-http = { version = "=0.7.1", features = ["catch-panic", "cors", "limit", "
 # Serialization, schemas and contracts.
 schemars = { version = "=1.2.3", features = ["chrono04", "url2", "uuid1"] }
 serde = { version = "=1.0.229", features = ["derive"] }
-serde-saphyr = "=2.0.0"
+serde-saphyr = "=2.1.1"
 serde_json = "=1.0.154"
-toml = "=1.1.8"
+toml = "=1.2.0"
 utoipa = { version = "=6.0.0", features = ["chrono", "macros", "uuid"] }
 utoipa-axum = "=0.3.0"
 
@@ -77,13 +77,13 @@ chrono-tz = { version = "=0.10.4", features = ["serde"] }
 humantime-serde = "=1.1.1"
 ipnet = { version = "=2.12.2", features = ["serde"] }
 lettre = { version = "=0.11.23", default-features = false, features = ["builder"] }
-minijinja = { version = "=3.0.3", features = ["fuel", "json", "loop_controls", "serde", "urlencode"] }
+minijinja = { version = "=3.1.0", features = ["fuel", "json", "loop_controls", "serde", "urlencode"] }
 percent-encoding = "=2.3.2"
 quick-xml = "=0.42.0"
-rmcp = { version = "=3.7.0", default-features = false, features = ["macros", "schemars", "server", "transport-streamable-http-server"] }
+rmcp = { version = "=3.9.0", default-features = false, features = ["macros", "schemars", "server", "transport-streamable-http-server"] }
 rrule = "=0.14.0"
 url = { version = "=2.5.8", features = ["serde"] }
-uuid = { version = "=1.29.0", features = ["serde", "v5", "v7"] }
+uuid = { version = "=1.29.2", features = ["serde", "v5", "v7"] }
 
 # Storage, mail and outbound HTTP. TLS is rustls with the ring provider only (R11).
 reqwest = { version = "=0.13.5", default-features = false, features = ["http2", "rustls-no-provider"] }
