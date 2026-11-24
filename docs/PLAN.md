@@ -801,7 +801,10 @@ development mode makes up a key ring per process and a secret hashed under one p
   audit purge job (2.18), `profile_signing_certificate_expiry_timestamp_seconds` (the `notAfter` of the certificate that signs
   Apple profiles, in use now; absent while signing is off), tenant label only with
   `observability.metrics.tenant_label` (the key is reserved and refused when it is `true`: `docs/ROADMAP.md`, ADR-0013).
-  The database pool gauges (`db_pool_in_use`, `db_pool_waiting`) are not exported yet (`docs/ROADMAP.md`). OTLP export optional, W3C traceparent propagated. JSON logs: request_id,
+  The PostgreSQL runtime pool exports `db_pool_in_use` (size minus idle, sampled every second by the managed
+  `postgres_pool_metrics` worker) and `db_pool_waiting` (adapter acquisitions in progress, including readiness and role
+  checks, removed on success, failure or cancellation). Migration and CLI pools are excluded; the gauges are absent with
+  the memory store. See the runbook for sampling and direct-pool access semantics. OTLP export optional, W3C traceparent propagated. JSON logs: request_id,
   trace_id, tenant_id, principal_id, route, status, latency; token paths redacted before logging.
 * Shipped: `deploy/prometheus/davhaven-rules.yml`, `deploy/grafana/davhaven-dashboard.json` and the operations guides in
   [`operations/`](operations/runbook.md) (`runbook.md`, `backup.md`, `database.md`, `keys.md`).

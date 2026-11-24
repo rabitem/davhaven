@@ -209,8 +209,9 @@ fn build(ctx: PluginContext, table: serde_json::Value) -> BoxFuture<'static, Res
         }
         let shared = Arc::clone(&database);
         let lifecycle: Arc<dyn Lifecycle> = shared;
+        let worker = Arc::clone(&database.pool_metrics);
         let port: Arc<dyn Database> = database;
-        Ok(Built::new(port).with_lifecycle(lifecycle))
+        Ok(Built::new(port).with_lifecycle(lifecycle).with_workers(vec![worker]))
     })
 }
 

@@ -13,9 +13,9 @@
 use std::time::Duration;
 
 use davhaven_ports::{PortError, StoreError};
-use sqlx::PgPool;
 use sqlx::migrate::Migrator;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use sqlx::{PgConnection, PgPool};
 
 use crate::config::{DatabaseConfig, PLUGIN};
 use crate::error::map_sqlx;
@@ -122,17 +122,23 @@ impl MigrationReport {
 ///
 /// # Errors
 ///
-/// Connection failures and, for a database where the history table does not exist, `None` is returned instead.
+/// Connection and query failures. A missing history table returns `Ok(None)` instead.
 pub async fn applied_version(pool: &PgPool) -> Result<Option<i64>, StoreError> {
+    let mut conn = pool.acquire().await.map_err(map_sqlx)?;
+    applied_version_on(&mut conn).await
+}
+
+/// Reads the schema version with an already acquired connection, including readiness's instrumented acquisition.
+pub(crate) async fn applied_version_on(conn: &mut PgConnection) -> Result<Option<i64>, StoreError> {
     let table: Option<String> = sqlx::query_scalar("SELECT to_regclass('_sqlx_migrations')::text")
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .map_err(map_sqlx)?;
     if table.is_none() {
         return Ok(None);
     }
     sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations WHERE success")
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .map_err(map_sqlx)
 }

@@ -25,12 +25,13 @@ use davhaven_ports::{
     Clock, Database, Health, IdGenerator, Lifecycle, PluginError, PortError, StoreError, SystemTx, Tx, TxMode, observe,
 };
 use secrecy::ExposeSecret;
-use sqlx::PgPool;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use sqlx::{PgPool, SqlSafeStr, Transaction};
 
 use crate::config::{DatabaseConfig, PLUGIN};
 use crate::error::map_sqlx;
-use crate::migrate::{REQUIRED_SCHEMA_VERSION, applied_version, require_supported_server};
+use crate::migrate::{REQUIRED_SCHEMA_VERSION, applied_version_on, require_supported_server};
+use crate::pool_metrics::PoolMetrics;
 use crate::repos::LABEL;
 use crate::tx::{PgSystemTx, PgTx};
 
@@ -224,6 +225,7 @@ pub fn transport_warning(url: &str) -> Option<String> {
 #[derive(Clone)]
 pub struct PgDatabase {
     pool: PgPool,
+    pub(crate) pool_metrics: Arc<PoolMetrics>,
     clock: Arc<dyn Clock>,
     ids: Arc<dyn IdGenerator>,
     maintenance_timeout: Duration,
@@ -242,6 +244,7 @@ impl PgDatabase {
     /// tables (otherwise row-level security does not apply to it).
     pub fn from_pool(pool: PgPool, clock: Arc<dyn Clock>, ids: Arc<dyn IdGenerator>) -> Self {
         Self {
+            pool_metrics: Arc::new(PoolMetrics::new(pool.clone())),
             pool,
             clock,
             ids,
@@ -296,14 +299,21 @@ impl PgDatabase {
         Ok(Self::from_pool(pool, clock, ids).with_maintenance_timeout(config.maintenance_timeout))
     }
 
-    /// The connection pool (for the readiness probe and tests).
+    /// The connection pool (for the readiness probe and tests). Direct acquisitions are included in the sampled
+    /// in-use gauge, but bypass the adapter's pending-acquisition gauge.
     pub fn pool(&self) -> &PgPool {
         &self.pool
     }
 
     /// Checks that the schema is at least [`REQUIRED_SCHEMA_VERSION`] and what the connected role may do.
     async fn schema_health(&self) -> Health {
-        match applied_version(&self.pool).await {
+        // Release this connection before posture acquires one: a pool with a single connection must work too.
+        let version = async {
+            let mut conn = self.pool_metrics.acquire().await?;
+            applied_version_on(&mut conn).await
+        }
+        .await;
+        match version {
             Ok(Some(version)) if version >= REQUIRED_SCHEMA_VERSION => match self.posture().await.reason() {
                 Some(reason) => Health::Degraded(reason),
                 None => Health::Healthy,
@@ -328,8 +338,16 @@ impl PgDatabase {
     /// connection whose current schema is another one, or where the tables are not found, is reported as unknown.
     pub async fn posture(&self) -> Posture {
         let mut posture = Posture::default();
+        let mut conn = match self.pool_metrics.acquire().await {
+            Ok(conn) => conn,
+            Err(error) => {
+                posture.unknown = Some(format!("the role query failed ({error})"));
+                posture.locale_unknown = Some(format!("the locale query failed ({error})"));
+                return posture;
+            }
+        };
         let role = sqlx::query_as::<_, (String, Option<String>, bool, bool, bool)>(ROLE_POSTURE)
-            .fetch_one(&self.pool)
+            .fetch_one(&mut *conn)
             .await;
         match role {
             Ok((name, schema, privileged, tables_found, owner_member)) => {
@@ -349,7 +367,7 @@ impl PgDatabase {
                     posture.unbound_role = Some(name);
                 } else if posture.unknown.is_none() {
                     match sqlx::query_scalar::<_, String>(EXCESS_PRIVILEGES)
-                        .fetch_all(&self.pool)
+                        .fetch_all(&mut *conn)
                         .await
                     {
                         Ok(excess) => posture.excess_privileges = excess,
@@ -363,7 +381,7 @@ impl PgDatabase {
         }
         // `U&'\00C4...'` spells "ÄÖÜ" and "äöü" without non-ASCII source text.
         match sqlx::query_scalar::<_, bool>(r"SELECT lower(U&'\00C4\00D6\00DC') = U&'\00E4\00F6\00FC'")
-            .fetch_one(&self.pool)
+            .fetch_one(&mut *conn)
             .await
         {
             Ok(folds) => posture.ascii_only_case_folding = !folds,
@@ -384,7 +402,11 @@ impl Database for PgDatabase {
                 TxMode::ReadWrite => "BEGIN",
                 _ => return Err(StoreError::Unsupported),
             };
-            let mut conn = self.pool.begin_with(statement).await.map_err(map_sqlx)?;
+            let conn = self.pool_metrics.acquire().await?;
+            // Like `PgPool::begin_with`, move the owned connection into a transaction that can outlive this call.
+            let mut conn = Transaction::begin(conn, Some(statement.into_sql_str()))
+                .await
+                .map_err(map_sqlx)?;
             sqlx::query("SELECT set_config('davhaven.tenant_id', $1, true)")
                 .bind(tenant.to_string())
                 .execute(&mut *conn)
@@ -404,7 +426,8 @@ impl Database for PgDatabase {
 
     async fn begin_system(&self) -> Result<Box<dyn SystemTx>, StoreError> {
         observe(LABEL, "begin_system", async {
-            let mut conn = self.pool.begin().await.map_err(map_sqlx)?;
+            let conn = self.pool_metrics.acquire().await?;
+            let mut conn = Transaction::begin(conn, None).await.map_err(map_sqlx)?;
             sqlx::query("SELECT set_config('davhaven.system', 'on', true)")
                 .execute(&mut *conn)
                 .await

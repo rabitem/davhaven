@@ -6,6 +6,11 @@ change the configuration, the database schema or the wire formats.
 
 ## [Unreleased]
 
+### Added
+
+- PostgreSQL runtime pool metrics: sampled in-use connections and cancellation-safe pending acquisitions, including
+  readiness and role checks, with a Grafana panel and operations guidance.
+
 ## [0.1.0] - 2026-11-01
 
 The first public version: a multi-tenant CalDAV and scheduling server with a management REST API, an MCP endpoint and

@@ -1288,6 +1288,8 @@ dependencies = [
  "davhaven-ports",
  "futures",
  "humantime-serde",
+ "metrics",
+ "metrics-exporter-prometheus",
  "schemars",
  "secrecy",
  "serde",
