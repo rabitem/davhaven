@@ -82,8 +82,7 @@ jobs:
       - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: cargo-nextest
-      # The nightly profile of .config/nextest.toml kills a test only after half an hour: property tests with 20000
-      # cases and the full matrices have single tests that run for many minutes.
+      # The nightly nextest profile gives the property tests and full matrices time to finish.
       - name: Property tests with 20k cases
         run: cargo nextest run --workspace --all-features --locked --release --profile nightly
       - name: Hand the workspace back to the runner user
