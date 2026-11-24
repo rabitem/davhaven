@@ -57,7 +57,7 @@ jobs:
       matrix:
         group: [lint, docs, hack, supply-chain]
     container:
-      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      image: rust:1.99.1-bookworm@sha256:e6f2cff35d0f309acf8433b4f05878ed77092602c5065cc81801177da0bb3a9c
       # The hosted fallback has two CPUs; leave RAM for the runner.
       options: >-
         ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
@@ -197,7 +197,7 @@ jobs:
     permissions:
       contents: read
     container:
-      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      image: rust:1.99.1-bookworm@sha256:e6f2cff35d0f309acf8433b4f05878ed77092602c5065cc81801177da0bb3a9c
       # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
       options: >-
         ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
@@ -207,7 +207,7 @@ jobs:
     # of the tests are small).
     services:
       postgres:
-        image: postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+        image: postgres:18@sha256:a47637053e65dc7112aeb7353feb8b87954982ad5fd4524908c284d90d71b5e3
         env:
           POSTGRES_USER: davhaven
           POSTGRES_PASSWORD: davhaven
@@ -274,14 +274,14 @@ jobs:
     permissions:
       contents: read
     container:
-      image: rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+      image: rust:1.99.1-bookworm@sha256:e6f2cff35d0f309acf8433b4f05878ed77092602c5065cc81801177da0bb3a9c
       # The hosted fallback has two CPUs; leave RAM for its PostgreSQL service and the runner.
       options: >-
         ${{ (github.event.pull_request.head.repo.fork || github.event.pull_request.user.login == 'dependabot[bot]' || github.actor == 'dependabot[bot]' || !vars.CI_RUNS_ON) && '--cpus 2 --memory 4g --memory-swap 4g' || '--cpus 4 --memory 10g --memory-swap 10g' }}
         --cpu-shares 256 --oom-score-adj 500 --pids-limit 8192
     services:
       postgres:
-        image: postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+        image: postgres:18@sha256:a47637053e65dc7112aeb7353feb8b87954982ad5fd4524908c284d90d71b5e3
         env:
           POSTGRES_USER: davhaven
           POSTGRES_PASSWORD: davhaven

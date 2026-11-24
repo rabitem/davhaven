@@ -12,7 +12,7 @@
 # * The revision is mandatory: `docker build --build-arg REVISION=<git sha>`. The release workflow passes
 #   it; a build without it fails in the first stage instead of producing an image nobody can trace.
 
-FROM rust:1.99.1-slim-trixie@sha256:b8e062b1c3a80183df83d9ba187cadd2b5ab84bc78d453dbfeb2fccd5f982247 AS build
+FROM rust:1.99.1-slim-trixie@sha256:f6c4a35d21dbb3c89d7a8d056c193e94fc09037f2b58dd858b09c39a47dd02d7 AS build
 ARG REVISION
 # Use the image's toolchain as is; rust-toolchain.toml would otherwise pull in clippy, rustfmt and llvm-tools.
 # DAVHAVEN_REVISION is read at compile time: the entity tag of a subscription feed carries it, so that a release that
@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     cargo build --release --locked -p davhaven-server --bin davhaven \
     && install -D -m 0755 target/release/davhaven /out/davhaven
 
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:08476c244888bfb425bae1ae4dd7c17f093e972aab8426883d97f3c6f280f7c1
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:532c7a94f9e96ba9db75eb9388f4227751131c7cb0a411d1a8521af4096135de
 ARG REVISION
 LABEL org.opencontainers.image.title="davhaven" \
       org.opencontainers.image.description="A multi-tenant CalDAV and scheduling server" \
