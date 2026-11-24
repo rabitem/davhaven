@@ -16,11 +16,10 @@
 //!   folded at 75 octets, so that the server's limits (PLAN 2.15) are not what decides whether an event arrives.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::str::FromStr as _;
 
 use chrono::{DateTime, FixedOffset, NaiveDate, Utc};
-use chrono_tz::Tz;
 use davhaven_ports::RemoteChange;
+use jiff::{Timestamp, tz::TimeZone};
 use serde::Deserialize;
 
 /// The longest title or location, in characters.
@@ -89,26 +88,29 @@ fn when(moment: &Moment) -> Option<When> {
 }
 
 /// Whether a zone is UTC under another name, which is written as `Z` instead of a `TZID`.
-fn is_utc(zone: Tz) -> bool {
+fn is_utc(zone: &str) -> bool {
     matches!(
-        zone.name(),
+        zone,
         "UTC" | "Etc/UTC" | "Etc/UCT" | "Etc/Universal" | "Etc/Zulu" | "UCT" | "Universal" | "Zulu"
     )
 }
 
 /// The text of a date or date-time property (`DTSTART`, `DTEND`, `RECURRENCE-ID`, `EXDATE`): a `DATE`, an instant in UTC, or
 /// the local time in `zone` with its `TZID`.
-fn date_property(name: &str, when: When, zone: Option<Tz>) -> String {
+fn date_property(name: &str, when: When, zone: Option<&TimeZone>) -> String {
     match when {
         When::Date(date) => format!("{name};VALUE=DATE:{}", date.format("%Y%m%d")),
-        When::Instant(instant) => match zone.filter(|zone| !is_utc(*zone)) {
-            Some(zone) => format!(
-                "{name};TZID={}:{}",
-                zone.name(),
-                instant.with_timezone(&zone).format("%Y%m%dT%H%M%S")
-            ),
-            None => format!("{name}:{}", instant.with_timezone(&Utc).format("%Y%m%dT%H%M%SZ")),
-        },
+        When::Instant(instant) => {
+            if let Some(zone) = zone
+                && let Some(tzid) = zone.iana_name()
+                && let Ok(timestamp) = Timestamp::from_second(instant.timestamp())
+                && let Some(offset) = FixedOffset::east_opt(zone.to_offset(timestamp).seconds())
+            {
+                let local = instant.with_timezone(&offset);
+                return format!("{name};TZID={tzid}:{}", local.format("%Y%m%dT%H%M%S"));
+            }
+            format!("{name}:{}", instant.with_timezone(&Utc).format("%Y%m%dT%H%M%SZ"))
+        }
     }
 }
 
@@ -227,7 +229,7 @@ fn describe(ics: &mut Ics, event: &Event, uid: &str, now: DateTime<Utc>) {
 }
 
 /// `DTSTART` and `DTEND` of an event in `zone`. An event without a start cannot be shown and has none of them.
-fn times(ics: &mut Ics, event: &Event, zone: Option<Tz>) -> Option<()> {
+fn times(ics: &mut Ics, event: &Event, zone: Option<&TimeZone>) -> Option<()> {
     let start = event.start.as_ref().and_then(when)?;
     ics.line(&date_property("DTSTART", start, zone));
     match (event.end.as_ref().and_then(when), start) {
@@ -261,13 +263,12 @@ fn recurrence_lines(event: &Event) -> Vec<String> {
 }
 
 /// The zone a series is expanded in: the one Google names for its start, else UTC.
-fn series_zone(master: &Event) -> Tz {
-    master
-        .start
-        .as_ref()
-        .and_then(|start| start.time_zone.as_deref())
-        .and_then(|name| Tz::from_str(name).ok())
-        .unwrap_or(Tz::UTC)
+fn series_zone(master: &Event) -> Option<TimeZone> {
+    let name = master.start.as_ref()?.time_zone.as_deref()?;
+    if is_utc(name) {
+        return None;
+    }
+    TimeZone::get(name).ok().filter(|zone| zone.iana_name() == Some(name))
 }
 
 /// The uid of an event: its iCalendar UID, else its id.
@@ -282,7 +283,8 @@ fn uid_of(event: &Event) -> &str {
 /// The calendar object of an event that is not part of a series, or of a series with its changed and cancelled instances.
 fn object(master: &Event, children: &[Event], now: DateTime<Utc>) -> Option<String> {
     let series = !recurrence_lines(master).is_empty();
-    let zone = series.then(|| series_zone(master));
+    let zone = if series { series_zone(master) } else { None };
+    let zone = zone.as_ref();
     let uid = uid_of(master);
     let mut ics = Ics::new();
     ics.line("BEGIN:VCALENDAR");
@@ -655,6 +657,15 @@ mod tests {
             unknown.contains("DTSTART:20261026T080000Z\r\n"),
             "an unknown zone falls back to UTC: {unknown}"
         );
+    }
+
+    #[test]
+    fn a_series_preserves_the_zone_alias_and_leap_second() {
+        let ics = only(
+            r#"[{"id":"u","start":{"dateTime":"2016-12-31T23:59:60Z","timeZone":"US/Eastern"},
+                "recurrence":["RRULE:FREQ=DAILY;COUNT=3"]}]"#,
+        );
+        assert!(ics.contains("DTSTART;TZID=US/Eastern:20161231T185960\r\n"), "{ics}");
     }
 
     #[test]
