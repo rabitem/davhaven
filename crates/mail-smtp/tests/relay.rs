@@ -212,8 +212,6 @@ async fn serve(
                 data.push_str(body_line.strip_prefix('.').unwrap_or(&body_line));
                 data.push_str("\r\n");
             }
-            // The line break before the final dot belongs to the terminator, not to the message.
-            data.truncate(data.len().saturating_sub(2));
             if behaviour.data_reply.starts_with('2') {
                 sink.lock().await.push(Received {
                     from: from.clone(),
