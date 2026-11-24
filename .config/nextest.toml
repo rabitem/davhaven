@@ -33,6 +33,11 @@ slow-timeout = { period = "60s", terminate-after = 15 }
 filter = "package(davhaven-it) & test(=the_permission_matrix_runs_over_http_and_leaves_out_what_would_change_the_world)"
 slow-timeout = { period = "60s", terminate-after = 10 }
 
+# The sync-model replay runs 20,000 sequential scripts. Give this test time to finish on slower runners.
+[[profile.nightly.overrides]]
+filter = "package(davhaven-store-postgres) & binary(contract) & test(=cases::changes_match_a_model)"
+slow-timeout = { period = "300s", terminate-after = 9 }
+
 # Nightly runs the full matrices (CONFORMANCE_FULL=1): keep its half hour for them too. A profile's own
 # overrides are evaluated before the inherited ones.
 [[profile.nightly.overrides]]
