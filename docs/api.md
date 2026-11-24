@@ -295,7 +295,14 @@ event and never sends scheduling messages.
 configuration has them). `POST …/external-accounts` with `{provider, principal}` starts connecting an account for a user and answers
 `{authorization_url}` (`Cache-Control: no-store`): the person opens it, consents at the provider and lands on the callback of this
 server, after which the account is in `GET …/external-accounts` with its `status` (`active`, `error`, `disabled`), a `last_error` that
-names the reason and its `mirror_calendar_id`. The mirror is a calendar of kind `mirror` of that user: it is read-only on every
+names the reason and its `mirror_calendar_id`. Optional `last_error_code` gives the machine-readable reason without parsing that
+message: `auth_revoked`, `provider_rejected`, `provider_unavailable`, `too_large`, `mirror_missing`, `internal` or `principal_deleted`.
+Clients should accept future codes; no error or an unknown historical error format omits the field. Optional `last_sync_at` is
+the last successful pull since the latest connection; a failure retains it and reconnection clears it. `next_sync_at` is the
+recorded due time, which may be past while a provider is off, a principal is suspended or another worker holds the account.
+An active account without a recorded due time is due immediately; a disabled account is not pulled. Times are RFC 3339 UTC
+strings, omitted before they are recorded or when the stored sync state cannot be read. The mirror is a calendar of kind
+`mirror` of that user: it is read-only on every
 surface. `DELETE …/external-accounts/{id}` disconnects (the mirror calendar is deleted, the provider is asked to revoke the tokens). All
 four need the scope `providers:manage`; a provider that is off answers 409 `feature-not-enabled`, an unknown provider or principal 404,
 a principal that is not a user 422 (`/principal`). Views never carry tokens. The flow, the failures and the operations are in

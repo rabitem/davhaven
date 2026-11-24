@@ -266,8 +266,13 @@ Google and Microsoft are in the image and off until you switch them on. For a pr
    post it in a shared channel or log it. Their mirror calendar
    appears in their calendar app after the next pull (at most `[providers.sync] interval`, 15 minutes by default).
 
-**What to look at.** `GET …/external-accounts` lists every account with `status` (`active`, `error` or `disabled`) and `last_error`, which
-starts with the reason:
+**What to look at.** `GET …/external-accounts` lists every account with `status` (`active`, `error` or `disabled`), a human-readable
+`last_error` and optional `last_error_code`. Use the code for automation and accept future codes; unknown historical error formats
+have no code. `last_sync_at` is the last successful pull since the latest connection: it stays on a failed pull and is cleared on
+reconnection. `next_sync_at` records when the next pull is due, including the backoff after an error. It is absent for a new account
+(due immediately when active) or an account disabled after revoked access or principal deletion. The times are omitted when the
+stored sync state cannot be read. A recorded due time does not promise a pull: a provider that is off, a suspended principal or an
+active lease can delay it. The error codes mean:
 
 * `auth_revoked`: the provider says that the **refresh token** is no longer valid (RFC 6749 `invalid_grant`: the person removed the
   access, or it was revoked or expired), or the account has none. The account is **disabled** and nothing is pulled until the person

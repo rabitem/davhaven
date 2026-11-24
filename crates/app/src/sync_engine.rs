@@ -83,5 +83,5 @@ mod worker;
 
 pub use account::{SyncEngine, SyncOutcome};
 pub use apply::Applied;
-pub(crate) use state::SyncState;
+pub(crate) use state::{SyncState, error_code};
 pub use worker::{PASS_BUDGET, ProviderSyncWorker, STALL_LIMIT, STALL_MARGIN, SYNC_TOTAL};

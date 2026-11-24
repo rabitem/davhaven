@@ -46,6 +46,15 @@ pub struct ExternalAccountView {
     /// The last sync error, for operators.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_error: Option<String>,
+    /// Stable reason of `last_error`, when known. Accept future codes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_error_code: Option<String>,
+    /// Last successful pull since connection; absent if unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_sync_at: Option<DateTime<Utc>>,
+    /// Recorded next due time, subject to availability and leases; absent if unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_sync_at: Option<DateTime<Utc>>,
     /// When the account was connected.
     pub created_at: DateTime<Utc>,
     /// When the account was last changed.
@@ -95,11 +104,46 @@ mod tests {
             mirror_calendar_id: None,
             status: ExternalAccountStatus::Active,
             last_error: None,
+            last_error_code: None,
+            last_sync_at: None,
+            next_sync_at: None,
             created_at: DateTime::UNIX_EPOCH,
             updated_at: DateTime::UNIX_EPOCH,
         };
         let json = serde_json::to_string(&view).unwrap();
         assert!(!json.contains("token"), "{json}");
         assert_eq!(serde_json::from_str::<ExternalAccountView>(&json).unwrap(), view);
+    }
+
+    #[test]
+    fn sync_metadata_is_optional_for_existing_clients_and_accounts() {
+        let legacy = serde_json::json!({
+            "id": "018f3c1e-7b2a-7c3d-9e4f-000000000001",
+            "principal_id": "018f3c1e-7b2a-7c3d-9e4f-000000000002",
+            "principal": "anna",
+            "provider": "fake",
+            "account_ref": "anna@example.org",
+            "status": "active",
+            "created_at": "1970-01-01T00:00:00Z",
+            "updated_at": "1970-01-01T00:00:00Z",
+        });
+        let view: ExternalAccountView = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(view.last_sync_at, None);
+        assert_eq!(view.next_sync_at, None);
+        assert_eq!(view.last_error_code, None);
+        assert_eq!(
+            serde_json::to_value(&view).unwrap(),
+            legacy,
+            "unset metadata stays absent"
+        );
+
+        let mut current = legacy;
+        current["last_sync_at"] = serde_json::json!("2027-01-05T09:45:00Z");
+        current["next_sync_at"] = serde_json::json!("2027-01-05T10:00:00Z");
+        // The vocabulary is open so future server reasons remain readable by an older client.
+        current["last_error_code"] = serde_json::json!("future_reason");
+        let view: ExternalAccountView = serde_json::from_value(current.clone()).unwrap();
+        assert_eq!(view.last_error_code.as_deref(), Some("future_reason"));
+        assert_eq!(serde_json::to_value(view).unwrap(), current);
     }
 }

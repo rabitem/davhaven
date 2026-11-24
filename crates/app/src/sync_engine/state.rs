@@ -72,6 +72,26 @@ pub(crate) fn backoff(interval: Duration, failures: u32, longest: Duration) -> D
     base.saturating_mul(1_u32 << doublings).min(longest)
 }
 
+/// The public code of a stored error, including accounts written before the API exposed a separate code. Only
+/// known prefixes leave the application; provider text and unknown historical error formats are not codes.
+pub(crate) fn error_code(message: &str) -> Option<&'static str> {
+    let (code, _) = message.split_once(':')?;
+    if code == "principal_deleted" {
+        return Some("principal_deleted");
+    }
+    [
+        Failure::AuthRevoked,
+        Failure::ProviderRejected,
+        Failure::ProviderUnavailable,
+        Failure::TooLarge,
+        Failure::MirrorMissing,
+        Failure::Internal,
+    ]
+    .into_iter()
+    .map(Failure::code)
+    .find(|known| *known == code)
+}
+
 /// Why a pull failed. The code is what the `external_account.sync_failed` event and the metrics say; the message is what the
 /// operator reads in `last_error` (it names no address and no provider text).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

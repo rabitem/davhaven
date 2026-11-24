@@ -1850,9 +1850,32 @@
               "null"
             ]
           },
+          "last_error_code": {
+            "description": "Stable reason of `last_error`, when known. Accept future codes.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_sync_at": {
+            "description": "Last successful pull since connection; absent if unknown.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "mirror_calendar_id": {
             "description": "The mirror calendar the events are imported into.",
             "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next_sync_at": {
+            "description": "Recorded next due time, subject to availability and leases; absent if unknown.",
+            "format": "date-time",
             "type": [
               "string",
               "null"

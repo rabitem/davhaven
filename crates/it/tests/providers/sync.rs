@@ -6,7 +6,7 @@ use davhaven_testkit::davhaven_app::AppCore;
 use davhaven_testkit::davhaven_app::sync_engine::{ProviderSyncWorker, SyncOutcome};
 use davhaven_testkit::davhaven_domain::{ApiLimits, EventType, ExternalAccountId, Limits, PrincipalStatus};
 use davhaven_testkit::davhaven_fixtures::{ActorRole, names};
-use davhaven_testkit::davhaven_ports::{PortError, PortErrorKind, Provider, Worker};
+use davhaven_testkit::davhaven_ports::{Clock, PortError, PortErrorKind, Provider, Worker};
 use davhaven_testkit::davhaven_provider_fake::script::{Call, Mode, simple_event};
 use serde_json::Value;
 
@@ -35,6 +35,9 @@ async fn a_mirror_follows_its_calendar(store: StoreKind) {
     world.script.put_event("primary", "e1", event("e1", "One"));
     world.script.put_event("primary", "e2", event("e2", "Two"));
     let account = world.connect(World::OWNER, "olivia").await;
+    for field in ["last_sync_at", "next_sync_at", "last_error_code"] {
+        assert!(account.get(field).is_none(), "a new account has no {field}: {account}");
+    }
     assert_eq!(
         world.summaries(&account).await,
         Vec::<String>::new(),
@@ -42,9 +45,17 @@ async fn a_mirror_follows_its_calendar(store: StoreKind) {
     );
 
     // The account is due as soon as it is connected.
+    let first_sync = world.app.clock().now();
     world.work().await;
     assert_eq!(world.summaries(&account).await, text(&["One", "Two"]));
     assert_eq!(pulls(&world), 1);
+    let synced = world.account(account["id"].as_str().unwrap()).await;
+    assert_eq!(synced["last_sync_at"], serde_json::json!(first_sync));
+    assert_eq!(
+        synced["next_sync_at"],
+        serde_json::json!(first_sync + Duration::minutes(15))
+    );
+    assert!(synced.get("last_error_code").is_none(), "{synced}");
     let token = world.sync_token(&account).await;
     let etags = world.events(&account).await;
 
@@ -81,6 +92,14 @@ async fn a_mirror_follows_its_calendar(store: StoreKind) {
     let view = world.account(account["id"].as_str().unwrap()).await;
     assert_eq!(view["status"], "active");
     assert!(view.get("last_error").is_none(), "{view}");
+    assert_eq!(
+        view["last_sync_at"],
+        serde_json::json!(first_sync + Duration::minutes(32))
+    );
+    assert_eq!(
+        view["next_sync_at"],
+        serde_json::json!(first_sync + Duration::minutes(47))
+    );
 }
 
 on_both_stores!(following, a_mirror_follows_its_calendar);
@@ -275,6 +294,7 @@ async fn a_token_the_provider_refuses_is_renewed_once_and_the_pull_repeated() {
 async fn a_provider_that_refuses_the_refresh_token_switches_the_account_off_and_says_so_once() {
     let world = World::new(StoreKind::Memory).await;
     let account = world.connect(World::OWNER, "olivia").await;
+    let last_success = world.app.clock().now();
     world.work().await;
     let id = account["id"].as_str().unwrap().to_owned();
     // The person removed the application's access at the provider.
@@ -283,6 +303,12 @@ async fn a_provider_that_refuses_the_refresh_token_switches_the_account_off_and_
     world.work().await;
     let view = world.account(&id).await;
     assert_eq!(view["status"], "disabled", "{view}");
+    assert_eq!(view["last_sync_at"], serde_json::json!(last_success));
+    assert!(
+        view.get("next_sync_at").is_none(),
+        "a revoked account has no retry: {view}"
+    );
+    assert_eq!(view["last_error_code"], "auth_revoked");
     assert!(
         view["last_error"].as_str().unwrap().starts_with("auth_revoked"),
         "{view}"
@@ -300,10 +326,10 @@ async fn a_provider_that_refuses_the_refresh_token_switches_the_account_off_and_
 // A provider that fails
 // ---------------------------------------------------------------------------------------------------------------
 
-#[tokio::test]
-async fn an_unavailable_provider_is_tried_again_after_a_growing_wait_and_told_once() {
-    let world = World::new(StoreKind::Memory).await;
+async fn an_unavailable_provider_is_tried_again_after_a_growing_wait_and_told_once(store: StoreKind) {
+    let world = World::new(store).await;
     let account = world.connect(World::OWNER, "olivia").await;
+    let last_success = world.app.clock().now();
     world.work().await;
     let id = account["id"].as_str().unwrap().to_owned();
     world.script.put_event("primary", "e1", event("e1", "One"));
@@ -313,9 +339,20 @@ async fn an_unavailable_provider_is_tried_again_after_a_growing_wait_and_told_on
         .fail_next(Call::Changes, PortError::unavailable("still down"));
 
     world.pass(16);
+    let failure_at = world.app.clock().now();
     world.work().await;
     let view = world.account(&id).await;
     assert_eq!(view["status"], "error", "{view}");
+    assert_eq!(view["last_error_code"], "provider_unavailable");
+    assert_eq!(
+        view["last_sync_at"],
+        serde_json::json!(last_success),
+        "a failure keeps the last success"
+    );
+    assert_eq!(
+        view["next_sync_at"],
+        serde_json::json!(failure_at + Duration::minutes(5))
+    );
     assert!(
         view["last_error"].as_str().unwrap().starts_with("provider_unavailable"),
         "{view}"
@@ -334,7 +371,13 @@ async fn an_unavailable_provider_is_tried_again_after_a_growing_wait_and_told_on
     world.pass(1);
     world.work().await;
     assert_eq!(pulls(&world), asked + 1, "the second try");
-    assert_eq!(world.account(&id).await["status"], "error");
+    let retry = world.account(&id).await;
+    assert_eq!(retry["status"], "error");
+    assert_eq!(retry["last_sync_at"], serde_json::json!(last_success));
+    assert_eq!(
+        retry["next_sync_at"],
+        serde_json::json!(failure_at + Duration::minutes(15))
+    );
     assert_eq!(
         world.failures_told().await.len(),
         1,
@@ -351,6 +394,18 @@ async fn an_unavailable_provider_is_tried_again_after_a_growing_wait_and_told_on
     let view = world.account(&id).await;
     assert_eq!(view["status"], "active", "{view}");
     assert!(view.get("last_error").is_none(), "{view}");
+    assert!(
+        view.get("last_error_code").is_none(),
+        "recovery clears the error code: {view}"
+    );
+    assert_eq!(
+        view["last_sync_at"],
+        serde_json::json!(failure_at + Duration::minutes(15))
+    );
+    assert_eq!(
+        view["next_sync_at"],
+        serde_json::json!(failure_at + Duration::minutes(30))
+    );
     assert_eq!(world.summaries(&account).await, text(&["One"]));
 
     // A new outage is a new thing to tell.
@@ -361,6 +416,11 @@ async fn an_unavailable_provider_is_tried_again_after_a_growing_wait_and_told_on
     world.work().await;
     assert_eq!(world.failures_told().await.len(), 2);
 }
+
+on_both_stores!(
+    unavailable_provider_backoff,
+    an_unavailable_provider_is_tried_again_after_a_growing_wait_and_told_once
+);
 
 #[tokio::test]
 async fn a_calendar_the_provider_refuses_is_an_error_and_not_the_end_of_the_account() {
@@ -738,6 +798,11 @@ async fn the_account_of_a_deleted_principal_is_switched_off_and_its_access_given
     assert!(
         view["last_error"].as_str().unwrap().starts_with("principal_deleted"),
         "{view}"
+    );
+    assert_eq!(view["last_error_code"], "principal_deleted");
+    assert!(
+        view.get("next_sync_at").is_none(),
+        "a deleted principal has no retry: {view}"
     );
     assert_eq!(pulls(&world), 1, "the pull after the deletion was never made");
 }

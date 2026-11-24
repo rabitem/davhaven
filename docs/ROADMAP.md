@@ -14,6 +14,9 @@ page, inbound iTIP (off by default), resource auto-accept and free-busy; app pas
 tokens; feeds; the management API; the MCP server; Google and Microsoft pull import behind cargo features and
 disabled in configuration; the `ContentScanner` port; the in-process rate limiter.
 
+Provider account views include the last successful pull, recorded next due time and machine-readable error code
+([API reference](api.md#providers-and-external-accounts)).
+
 ## Backlog
 
 | Area | Item | Reason it is not in 1.0 |
@@ -34,7 +37,6 @@ disabled in configuration; the `ContentScanner` port; the in-process rate limite
 | Providers | Finding the due accounts with one query across tenants | The sync worker reads the accounts of every active tenant, one transaction per tenant, every poll interval, so the cost grows with the number of tenants and not with the number of accounts (R14). A system-scope query (enabled providers, status not `disabled`, ordered by due time, with a limit) needs the due time as a column of its own, which is a schema change. This is fine for the number of tenants of a 1.0 deployment. |
 | Providers | Accounts identified by an immutable id | An account is matched on the address the provider names (`account_ref`: the primary calendar id at Google, the mail or user principal name at Microsoft), which can change when a mailbox is renamed: the person then gets a second account and mirror instead of a reconnection. The Graph `id` with the tenant, or the OpenID `sub` at Google, would be stable; a unique key on (tenant, principal, provider, account) would also stop two concurrent callbacks from creating two accounts. Needs a column and an index. |
 | Providers | Complete `VTIMEZONE` components in mirror objects | The Google objects carry `TZID` parameters without a definition ([`interop.md`](interop.md)), as the provider sends them. Rendering one component per zone for the window (the feed renderer does) is possible, but a recurring series needs observances for ever. |
-| Providers | `last_sync_at`, `next_sync_at` and the reason as a field of `ExternalAccountView` | The reason of a failure reaches API clients as the start of `last_error` (`auth_revoked: …`), and nothing says whether a mirror is current. Additive optional fields of the wire type and a regenerated `openapi.json` would show it. |
 | Providers | One switch and one catalog for the providers | A provider is available when `plugins.providers` selects it **and** `[providers.<name>] enabled` is true, and `crates/app` lists the providers the project ships (`KNOWN_PROVIDERS`) for a build that lacks them. The server could build the catalog from the registry and the configuration, with selection as the only switch, and the window of the import (`history_days`, `future_days`) could move into the engine's settings and be passed to the adapters. Changes `AppDeps`, `Provider::enabled` and the contract of the provider list. |
 | Providers | A distinct signal for a refused access token | The engine renews the access token and repeats the call for every `Rejected` of the calendar API, so a `404` or `403` costs one extra refresh. A kind of its own for `401` (an additive `PortErrorKind`) would limit renewal to authentication failures. |
 | Providers | The tokens of a deleted principal revoked at the deletion | They are revoked when the sync worker claims the account next (and only while its provider is on), not in the transaction that deletes the principal. |

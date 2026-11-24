@@ -6,6 +6,11 @@ change the configuration, the database schema or the wire formats.
 
 ## [Unreleased]
 
+### Added
+
+- Provider account API views include the last successful pull, next recorded due time and machine-readable error code,
+  with operations guidance for retries, disabled accounts and reconnection.
+
 ## [0.1.0] - 2026-11-01
 
 The first public version: a multi-tenant CalDAV and scheduling server with a management REST API, an MCP endpoint and
